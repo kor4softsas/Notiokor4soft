@@ -31,13 +31,13 @@ export interface Note {
   type: 'task' | 'change' | 'bug' | 'feature' | 'note';
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   priority: 'low' | 'medium' | 'high' | 'urgent';
-  project?: string;
-  assigned_to?: string;
+  project?: string | null;
+  assigned_to?: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
   tags: string[];
-  parent_id?: string; // Para subtareas
+  parent_id?: string | null; // Para subtareas
   // Datos del usuario asignado (join)
   assigned_user?: {
     full_name: string;

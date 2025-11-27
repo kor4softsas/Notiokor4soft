@@ -89,9 +89,17 @@ export const useNotesStore = create<NotesState>()(
         }
 
         try {
+          // Limpiar campos vacíos - convertir "" a null para campos UUID
+          const cleanedNote = {
+            ...note,
+            assigned_to: note.assigned_to || null,
+            parent_id: note.parent_id || null,
+            project: note.project || null,
+          };
+
           const { data, error } = await supabase
             .from('notes')
-            .insert([note])
+            .insert([cleanedNote])
             .select()
             .single();
 
@@ -118,9 +126,26 @@ export const useNotesStore = create<NotesState>()(
         }
 
         try {
+          // Limpiar campos vacíos - convertir "" a null para campos UUID
+          const cleanedUpdates = {
+            ...updates,
+            updated_at: new Date().toISOString(),
+          };
+          
+          // Solo limpiar si el campo está presente en updates
+          if ('assigned_to' in updates) {
+            cleanedUpdates.assigned_to = updates.assigned_to || null;
+          }
+          if ('parent_id' in updates) {
+            cleanedUpdates.parent_id = updates.parent_id || null;
+          }
+          if ('project' in updates) {
+            cleanedUpdates.project = updates.project || null;
+          }
+
           const { data, error } = await supabase
             .from('notes')
-            .update({ ...updates, updated_at: new Date().toISOString() })
+            .update(cleanedUpdates)
             .eq('id', id)
             .select()
             .single();
