@@ -1,6 +1,6 @@
 [package]
 name = "notes-kor4soft"
-version = "0.6.0"
+version = "0.6.1"
 description = "Notes Kor4soft - Gestión de proyectos y tareas"
 authors = ["Kor4soft SAS"]
 edition = "2021"
