@@ -101,18 +101,41 @@ export function Settings() {
     
     try {
       const { check } = await import('@tauri-apps/plugin-updater');
+      const { relaunch } = await import('@tauri-apps/plugin-process');
       const update = await check();
       
       if (update) {
-        showMessage('success', 'Descargando actualización... La app se reiniciará automáticamente.');
-        await update.downloadAndInstall();
+        showMessage('success', 'Descargando actualización...');
+        
+        let downloaded = 0;
+        let contentLength = 0;
+        
+        await update.downloadAndInstall((event) => {
+          switch (event.event) {
+            case 'Started':
+              contentLength = event.data.contentLength || 0;
+              console.log(`Iniciando descarga: ${contentLength} bytes`);
+              break;
+            case 'Progress':
+              downloaded += event.data.chunkLength;
+              console.log(`Descargado: ${downloaded}/${contentLength}`);
+              break;
+            case 'Finished':
+              console.log('Descarga completada');
+              break;
+          }
+        });
+        
+        showMessage('success', 'Actualización instalada. Reiniciando...');
+        await relaunch();
       }
     } catch (error: any) {
       console.error('Error downloading update:', error);
+      const errorMsg = error.message || error.toString() || 'Error desconocido';
       setUpdateState(prev => ({
         ...prev,
         downloading: false,
-        error: error.message || 'Error al descargar actualización',
+        error: `Error: ${errorMsg}`,
       }));
     }
   };
