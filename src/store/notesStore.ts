@@ -69,20 +69,29 @@ export const useNotesStore = create<NotesState>()(
       },
 
       createNote: async (note) => {
+        // Asignar fecha actual si no se especifica due_date
+        const today = new Date().toISOString().split('T')[0]; // formato yyyy-MM-dd
+        const noteWithDate = {
+          ...note,
+          due_date: note.due_date || today,
+        };
+
         // Modo demo - guardar localmente
         if (!isSupabaseConfigured || !supabase) {
           const newNote: Note = {
             id: generateId(),
-            title: note.title || '',
-            content: note.content || '',
-            type: note.type || 'note',
-            status: note.status || 'pending',
-            priority: note.priority || 'medium',
-            project: note.project,
-            created_by: note.created_by || 'demo-user',
+            title: noteWithDate.title || '',
+            content: noteWithDate.content || '',
+            type: noteWithDate.type || 'note',
+            status: noteWithDate.status || 'pending',
+            priority: noteWithDate.priority || 'medium',
+            project: noteWithDate.project,
+            due_date: noteWithDate.due_date,
+            assigned_to: noteWithDate.assigned_to || [],
+            created_by: noteWithDate.created_by || 'demo-user',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-            tags: note.tags || [],
+            tags: noteWithDate.tags || [],
           };
           set((state) => ({ notes: [newNote, ...state.notes] }));
           return { error: null };
@@ -91,10 +100,10 @@ export const useNotesStore = create<NotesState>()(
         try {
           // Limpiar campos vacíos - convertir "" a null para campos UUID
           const cleanedNote = {
-            ...note,
-            assigned_to: note.assigned_to || null,
-            parent_id: note.parent_id || null,
-            project: note.project || null,
+            ...noteWithDate,
+            assigned_to: noteWithDate.assigned_to || null,
+            parent_id: noteWithDate.parent_id || null,
+            project: noteWithDate.project || null,
           };
 
           const { data, error } = await supabase
@@ -105,17 +114,21 @@ export const useNotesStore = create<NotesState>()(
 
           if (error) return { error: error.message };
 
-          // Notificar al usuario asignado (si es diferente al creador)
-          if (cleanedNote.assigned_to && cleanedNote.assigned_to !== cleanedNote.created_by) {
+          // Notificar a los usuarios asignados (excepto al creador)
+          if (cleanedNote.assigned_to && cleanedNote.assigned_to.length > 0) {
             const currentUser = (await supabase.auth.getUser()).data.user;
-            await createNotification({
-              userId: cleanedNote.assigned_to,
-              type: 'assignment',
-              title: 'Nueva tarea asignada',
-              message: `Te han asignado la tarea "${data.title}"`,
-              noteId: data.id,
-              fromUserId: currentUser?.id,
-            });
+            for (const userId of cleanedNote.assigned_to) {
+              if (userId !== cleanedNote.created_by) {
+                await createNotification({
+                  userId: userId,
+                  type: 'assignment',
+                  title: 'Nueva tarea asignada',
+                  message: `Te han asignado la tarea "${data.title}"`,
+                  noteId: data.id,
+                  fromUserId: currentUser?.id,
+                });
+              }
+            }
           }
 
           set((state) => ({ notes: [data, ...state.notes] }));
@@ -173,18 +186,24 @@ export const useNotesStore = create<NotesState>()(
 
           if (error) return { error: error.message };
 
-          // Notificar si se cambió la asignación a un nuevo usuario
-          if (cleanedUpdates.assigned_to && 
-              cleanedUpdates.assigned_to !== currentNote?.assigned_to) {
+          // Notificar a nuevos usuarios asignados
+          if (cleanedUpdates.assigned_to && cleanedUpdates.assigned_to.length > 0) {
             const currentUser = (await supabase.auth.getUser()).data.user;
-            await createNotification({
-              userId: cleanedUpdates.assigned_to,
-              type: 'assignment',
-              title: 'Tarea asignada',
-              message: `Te han asignado la tarea "${data.title}"`,
-              noteId: id,
-              fromUserId: currentUser?.id,
-            });
+            const previousAssigned = currentNote?.assigned_to || [];
+            
+            // Encontrar nuevos asignados que no estaban antes
+            for (const userId of cleanedUpdates.assigned_to) {
+              if (!previousAssigned.includes(userId)) {
+                await createNotification({
+                  userId: userId,
+                  type: 'assignment',
+                  title: 'Tarea asignada',
+                  message: `Te han asignado la tarea "${data.title}"`,
+                  noteId: id,
+                  fromUserId: currentUser?.id,
+                });
+              }
+            }
           }
 
           set((state) => ({

@@ -32,7 +32,7 @@ export interface Note {
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   project?: string | null;
-  assigned_to?: string | null;
+  assigned_to?: string[] | null;
   created_by: string;
   created_at: string;
   updated_at: string;

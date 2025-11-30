@@ -78,11 +78,12 @@ export function NoteEditor() {
     priority: 'medium' as Note['priority'],
     project: '',
     tags: [] as string[],
-    assigned_to: '' as string,
+    assigned_to: [] as string[],
     parent_id: parentFromUrl || '',
     due_date: dateFromUrl || '' as string,
     estimated_hours: '' as string,
   });
+  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
   const [tagInput, setTagInput] = useState('');
 
   const isEditing = !!id;
@@ -109,7 +110,7 @@ export function NoteEditor() {
         priority: 'medium' as Note['priority'],
         project: '',
         tags: [],
-        assigned_to: '',
+        assigned_to: [],
         parent_id: parentFromUrl || '',
         due_date: dateFromUrl || '',
         estimated_hours: '',
@@ -129,7 +130,7 @@ export function NoteEditor() {
           priority: note.priority,
           project: note.project || '',
           tags: note.tags || [],
-          assigned_to: note.assigned_to || '',
+          assigned_to: note.assigned_to || [],
           parent_id: note.parent_id || '',
           due_date: note.due_date || '',
           estimated_hours: note.estimated_hours?.toString() || '',
@@ -325,23 +326,92 @@ export function NoteEditor() {
               className="w-full bg-[#181825] border border-gray-700 rounded-lg py-3 px-4 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
             />
           </div>
-          <div>
+          <div className="relative">
             <label className="block text-sm text-gray-400 mb-2 flex items-center gap-2">
               <UserPlus size={16} />
-              Asignar a
+              Asignar a (puede seleccionar varios)
             </label>
-            <select
-              value={formData.assigned_to}
-              onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value })}
-              className="w-full bg-[#181825] border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-blue-500 transition-colors"
+            <div
+              onClick={() => setShowAssigneeDropdown(!showAssigneeDropdown)}
+              className="w-full bg-[#181825] border border-gray-700 rounded-lg py-3 px-4 text-white cursor-pointer hover:border-gray-600 transition-colors min-h-[48px]"
             >
-              <option value="">Sin asignar</option>
-              {members.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.full_name} {member.id === user?.id ? '(Yo)' : ''}
-                </option>
-              ))}
-            </select>
+              {formData.assigned_to.length === 0 ? (
+                <span className="text-gray-500">Sin asignar</span>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {formData.assigned_to.map((userId) => {
+                    const member = members.find(m => m.id === userId);
+                    return member ? (
+                      <span key={userId} className="px-2 py-1 bg-blue-600/20 text-blue-400 rounded text-sm flex items-center gap-1">
+                        {member.full_name}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFormData({
+                              ...formData,
+                              assigned_to: formData.assigned_to.filter(id => id !== userId)
+                            });
+                          }}
+                          className="hover:text-white ml-1"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ) : null;
+                  })}
+                </div>
+              )}
+            </div>
+            {showAssigneeDropdown && (
+              <div className="absolute z-10 w-full mt-1 bg-[#181825] border border-gray-700 rounded-lg shadow-xl max-h-60 overflow-auto">
+                {members.map((member) => {
+                  const isSelected = formData.assigned_to.includes(member.id);
+                  return (
+                    <div
+                      key={member.id}
+                      onClick={() => {
+                        if (isSelected) {
+                          setFormData({
+                            ...formData,
+                            assigned_to: formData.assigned_to.filter(id => id !== member.id)
+                          });
+                        } else {
+                          setFormData({
+                            ...formData,
+                            assigned_to: [...formData.assigned_to, member.id]
+                          });
+                        }
+                      }}
+                      className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
+                        isSelected ? 'bg-blue-600/20' : 'hover:bg-[#1e1e2e]'
+                      }`}
+                    >
+                      <div className={`w-5 h-5 rounded border flex items-center justify-center ${
+                        isSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-600'
+                      }`}>
+                        {isSelected && <span className="text-white text-xs">✓</span>}
+                      </div>
+                      <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm">
+                        {member.full_name.charAt(0)}
+                      </div>
+                      <span className="text-white">
+                        {member.full_name} {member.id === user?.id ? '(Yo)' : ''}
+                      </span>
+                    </div>
+                  );
+                })}
+                <div className="p-2 border-t border-gray-700">
+                  <button
+                    type="button"
+                    onClick={() => setShowAssigneeDropdown(false)}
+                    className="w-full py-2 text-sm text-gray-400 hover:text-white transition-colors"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

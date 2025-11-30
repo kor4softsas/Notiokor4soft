@@ -176,9 +176,9 @@ export function Kanban() {
     setDraggedNote(null);
   };
 
-  const getAssignedUser = (userId?: string | null) => {
-    if (!userId) return null;
-    return members.find(m => m.id === userId);
+  const getAssignedUsers = (userIds?: string[] | null) => {
+    if (!userIds || userIds.length === 0) return [];
+    return members.filter(m => userIds.includes(m.id));
   };
 
   const isOverdue = (dueDate?: string | null) => {
@@ -297,7 +297,7 @@ export function Kanban() {
                     </div>
                   ) : (
                     columnNotes.map(note => {
-                      const assignedUser = getAssignedUser(note.assigned_to);
+                      const assignedUsers = getAssignedUsers(note.assigned_to);
                       const overdue = isOverdue(note.due_date);
                       
                       return (
@@ -407,13 +407,23 @@ export function Kanban() {
                               )}
                             </div>
 
-                            {/* Assigned user */}
-                            {assignedUser ? (
-                              <div 
-                                className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-medium"
-                                title={assignedUser.full_name}
-                              >
-                                {assignedUser.full_name?.charAt(0).toUpperCase()}
+                            {/* Assigned users */}
+                            {assignedUsers.length > 0 ? (
+                              <div className="flex -space-x-2">
+                                {assignedUsers.slice(0, 3).map((u) => (
+                                  <div 
+                                    key={u.id}
+                                    className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-medium border border-[#181825]"
+                                    title={u.full_name}
+                                  >
+                                    {u.full_name?.charAt(0).toUpperCase()}
+                                  </div>
+                                ))}
+                                {assignedUsers.length > 3 && (
+                                  <div className="w-6 h-6 rounded-full bg-gray-600 flex items-center justify-center text-white text-xs font-medium border border-[#181825]">
+                                    +{assignedUsers.length - 3}
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <div 
