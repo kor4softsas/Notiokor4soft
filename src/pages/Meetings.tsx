@@ -22,6 +22,9 @@ import { es } from 'date-fns/locale';
 // Configuración de JaaS (Jitsi as a Service)
 const JAAS_APP_ID = 'vpaas-magic-cookie-1ce7135e1c534d72904f14bcef702bc4';
 
+// Detectar si estamos en Tauri (app de escritorio)
+const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
+
 export function Meetings() {
   const { user } = useAuthStore();
   const { meetings, isLoading, fetchMeetings, createMeeting, deleteMeeting, updateMeetingStatus } = useMeetingsStore();
@@ -71,8 +74,19 @@ export function Meetings() {
   };
 
   const handleJoinMeeting = (meeting: Meeting) => {
-    setShowVideoCall(meeting);
-    updateMeetingStatus(meeting.id, 'in_progress');
+    const roomName = `${JAAS_APP_ID}/${meeting.room_name}`;
+    const jitsiUrl = `https://8x8.vc/${roomName}`;
+    
+    // En Tauri (Linux/Windows/Mac), abrir en navegador externo por mejor soporte WebRTC
+    if (isTauri) {
+      // Abrir en el navegador del sistema
+      window.open(jitsiUrl, '_blank');
+      updateMeetingStatus(meeting.id, 'in_progress');
+    } else {
+      // En navegador web, usar el iframe integrado
+      setShowVideoCall(meeting);
+      updateMeetingStatus(meeting.id, 'in_progress');
+    }
   };
 
   const handleLeaveMeeting = () => {
