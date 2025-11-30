@@ -53,8 +53,8 @@ export function Settings() {
     error: null,
   });
 
-  const currentVersion = '0.4.0';
-  const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
+  const currentVersion = '0.4.1';
+  const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
   const checkForUpdates = async () => {
     if (!isTauri) {
