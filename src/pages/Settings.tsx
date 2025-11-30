@@ -10,6 +10,9 @@ import {
   EyeOff,
   CheckCircle,
   AlertCircle,
+  Download,
+  RefreshCw,
+  Sparkles,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
@@ -34,6 +37,85 @@ export function Settings() {
     new_password: '',
     confirm_password: '',
   });
+
+  // Estado para actualizaciones
+  const [updateState, setUpdateState] = useState<{
+    checking: boolean;
+    downloading: boolean;
+    available: boolean;
+    version: string | null;
+    error: string | null;
+  }>({
+    checking: false,
+    downloading: false,
+    available: false,
+    version: null,
+    error: null,
+  });
+
+  const currentVersion = '0.4.0';
+  const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
+
+  const checkForUpdates = async () => {
+    if (!isTauri) {
+      setUpdateState(prev => ({ ...prev, error: 'Las actualizaciones solo funcionan en la app de escritorio' }));
+      return;
+    }
+
+    setUpdateState(prev => ({ ...prev, checking: true, error: null }));
+    
+    try {
+      const { check } = await import('@tauri-apps/plugin-updater');
+      const update = await check();
+      
+      if (update) {
+        setUpdateState(prev => ({
+          ...prev,
+          checking: false,
+          available: true,
+          version: update.version,
+        }));
+      } else {
+        setUpdateState(prev => ({
+          ...prev,
+          checking: false,
+          available: false,
+          version: null,
+        }));
+        showMessage('success', 'Ya tienes la última versión');
+      }
+    } catch (error: any) {
+      console.error('Error checking updates:', error);
+      setUpdateState(prev => ({
+        ...prev,
+        checking: false,
+        error: error.message || 'Error al verificar actualizaciones',
+      }));
+    }
+  };
+
+  const downloadAndInstall = async () => {
+    if (!isTauri) return;
+
+    setUpdateState(prev => ({ ...prev, downloading: true, error: null }));
+    
+    try {
+      const { check } = await import('@tauri-apps/plugin-updater');
+      const update = await check();
+      
+      if (update) {
+        showMessage('success', 'Descargando actualización... La app se reiniciará automáticamente.');
+        await update.downloadAndInstall();
+      }
+    } catch (error: any) {
+      console.error('Error downloading update:', error);
+      setUpdateState(prev => ({
+        ...prev,
+        downloading: false,
+        error: error.message || 'Error al descargar actualización',
+      }));
+    }
+  };
 
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
@@ -372,6 +454,85 @@ export function Settings() {
             Actualizar contraseña
           </button>
         </form>
+      </div>
+
+      {/* Updates Section */}
+      <div className="bg-[#181825] rounded-xl border border-gray-700 p-6 mt-6">
+        <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
+          <Download size={20} />
+          Actualizaciones
+        </h2>
+
+        <div className="space-y-4">
+          {/* Current Version */}
+          <div className="flex items-center justify-between p-4 bg-[#11111b] rounded-lg">
+            <div>
+              <p className="text-white font-medium">Versión actual</p>
+              <p className="text-gray-500 text-sm">Notes Kor4soft</p>
+            </div>
+            <span className="px-3 py-1 bg-blue-600/20 text-blue-400 rounded-full text-sm font-medium">
+              v{currentVersion}
+            </span>
+          </div>
+
+          {/* Update Status */}
+          {updateState.error && (
+            <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">
+              <AlertCircle size={20} />
+              {updateState.error}
+            </div>
+          )}
+
+          {updateState.available && updateState.version && (
+            <div className="flex items-center gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+              <Sparkles size={20} className="text-green-400" />
+              <div className="flex-1">
+                <p className="text-green-400 font-medium">¡Nueva versión disponible!</p>
+                <p className="text-green-300/70 text-sm">Versión {updateState.version}</p>
+              </div>
+              <button
+                onClick={downloadAndInstall}
+                disabled={updateState.downloading}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
+              >
+                {updateState.downloading ? (
+                  <>
+                    <RefreshCw size={16} className="animate-spin" />
+                    Descargando...
+                  </>
+                ) : (
+                  <>
+                    <Download size={16} />
+                    Actualizar
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Check for Updates Button */}
+          <button
+            onClick={checkForUpdates}
+            disabled={updateState.checking || updateState.downloading}
+            className="flex items-center justify-center gap-2 w-full py-3 bg-[#11111b] hover:bg-[#1e1e2e] border border-gray-700 text-white rounded-lg transition-colors disabled:opacity-50"
+          >
+            {updateState.checking ? (
+              <>
+                <RefreshCw size={18} className="animate-spin" />
+                Verificando...
+              </>
+            ) : (
+              <>
+                <RefreshCw size={18} />
+                Buscar actualizaciones
+              </>
+            )}
+          </button>
+
+          <p className="text-gray-500 text-xs text-center">
+            Las actualizaciones se descargan e instalan automáticamente.
+          </p>
+        </div>
       </div>
     </div>
   );

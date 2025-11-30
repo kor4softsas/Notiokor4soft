@@ -15,7 +15,6 @@ import { Chat } from './pages/Chat';
 import { Kanban } from './pages/Kanban';
 import { Expenses } from './pages/Expenses';
 import { GlobalSearch } from './components/GlobalSearch';
-import { UpdateChecker } from './components/UpdateChecker';
 import { useAuthStore } from './store/authStore';
 import './index.css';
 
@@ -54,9 +53,6 @@ function App() {
     >
       {/* Búsqueda Global - Ctrl+K */}
       <GlobalSearch />
-      
-      {/* Auto-updater */}
-      <UpdateChecker />
       
       <Routes>
         {/* Public Routes */}
