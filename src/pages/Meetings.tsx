@@ -416,7 +416,7 @@ function MeetingCard({
   disabled?: boolean;
 }) {
   return (
-    <div className={`bg-[#181825] rounded-xl border border-gray-700 p-4 ${disabled ? 'pointer-events-none' : ''}`}>
+    <div className="bg-[#181825] rounded-xl border border-gray-700 p-4">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-2">
@@ -464,8 +464,12 @@ function MeetingCard({
           )}
           {isCreator && (
             <button
-              onClick={onDelete}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
               className="p-2 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-lg transition-colors"
+              title="Eliminar reunión"
             >
               <Trash2 size={18} />
             </button>
