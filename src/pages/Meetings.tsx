@@ -22,8 +22,20 @@ import { es } from 'date-fns/locale';
 // Configuración de JaaS (Jitsi as a Service)
 const JAAS_APP_ID = 'vpaas-magic-cookie-1ce7135e1c534d72904f14bcef702bc4';
 
-// Detectar si estamos en Tauri (app de escritorio)
-const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
+// Detectar si estamos en Tauri (app de escritorio) - múltiples métodos
+const isTauri = typeof window !== 'undefined' && (
+  '__TAURI__' in window || 
+  '__TAURI_INTERNALS__' in window ||
+  window.navigator.userAgent.includes('Tauri')
+);
+
+// Detectar si estamos en un entorno de escritorio (no navegador normal)
+const isDesktopApp = typeof window !== 'undefined' && (
+  isTauri ||
+  !window.navigator.userAgent.includes('Chrome') && 
+  !window.navigator.userAgent.includes('Firefox') &&
+  window.navigator.userAgent.includes('WebKit')
+);
 
 export function Meetings() {
   const { user } = useAuthStore();
@@ -77,20 +89,26 @@ export function Meetings() {
     const roomName = `${JAAS_APP_ID}/${meeting.room_name}`;
     const jitsiUrl = `https://8x8.vc/${roomName}`;
     
-    // En Tauri (Linux/Windows/Mac), abrir en navegador externo por mejor soporte WebRTC
-    if (isTauri) {
+    console.log('isTauri:', isTauri, 'isDesktopApp:', isDesktopApp);
+    console.log('User Agent:', window.navigator.userAgent);
+    
+    // En app de escritorio, SIEMPRE abrir en navegador externo
+    if (isDesktopApp) {
       try {
-        // Usar el plugin opener de Tauri para abrir en el navegador del sistema
+        // Intentar con el plugin opener de Tauri
         const { openUrl } = await import('@tauri-apps/plugin-opener');
+        console.log('Abriendo con Tauri opener:', jitsiUrl);
         await openUrl(jitsiUrl);
         updateMeetingStatus(meeting.id, 'in_progress');
       } catch (error) {
-        console.error('Error abriendo URL:', error);
-        // Fallback: intentar con window.open
-        window.open(jitsiUrl, '_blank');
+        console.error('Error con Tauri opener, intentando xdg-open:', error);
+        // Fallback: mostrar instrucciones al usuario
+        alert(`Por favor abre esta URL en tu navegador:\n\n${jitsiUrl}`);
+        // Copiar al portapapeles
+        navigator.clipboard.writeText(jitsiUrl);
       }
     } else {
-      // En navegador web, usar el iframe integrado
+      // En navegador web normal, usar el iframe integrado
       setShowVideoCall(meeting);
       updateMeetingStatus(meeting.id, 'in_progress');
     }
