@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/authStore';
 export function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
@@ -17,7 +18,7 @@ export function Login() {
     setError('');
     setIsLoading(true);
 
-    const { error } = await login(email, password);
+    const { error } = await login(email, password, rememberMe);
     
     if (error) {
       setError(error);
@@ -78,6 +79,30 @@ export function Login() {
                 />
               </div>
             </div>
+
+            {/* Mantener sesión */}
+            <label className="flex items-center gap-3 cursor-pointer group">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-5 h-5 border-2 border-gray-600 rounded bg-[#11111b] peer-checked:bg-blue-600 peer-checked:border-blue-600 transition-colors" />
+                <svg 
+                  className="absolute top-0.5 left-0.5 w-4 h-4 text-white opacity-0 peer-checked:opacity-100 transition-opacity" 
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <span className="text-gray-400 group-hover:text-gray-300 transition-colors text-sm">
+                Mantener sesión abierta
+              </span>
+            </label>
 
             <button
               type="submit"

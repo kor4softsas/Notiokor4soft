@@ -38,11 +38,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
-  const { checkAuth } = useAuthStore();
+  const { checkAuth, checkRememberMe } = useAuthStore();
 
   useEffect(() => {
+    // Verificar si debe mantener la sesión o cerrarla
+    checkRememberMe();
     checkAuth();
-  }, [checkAuth]);
+  }, [checkAuth, checkRememberMe]);
 
   return (
     <BrowserRouter
