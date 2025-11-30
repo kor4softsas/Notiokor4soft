@@ -14,6 +14,7 @@ import {
   CheckCircle,
   Clock,
   XCircle,
+  Eye,
 } from 'lucide-react';
 import { useExpensesStore } from '../store/expensesStore';
 import { useAuthStore } from '../store/authStore';
@@ -43,13 +44,19 @@ export function Expenses() {
 
   const [showModal, setShowModal] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [viewingExpense, setViewingExpense] = useState<Expense | null>(null);
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [dateFilter, setDateFilter] = useState<'all' | 'month' | 'custom'>('month');
-  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [activeMenu, setActiveMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+
+  // Eliminar categorías duplicadas
+  const uniqueCategories = categories.filter((cat, index, self) =>
+    index === self.findIndex(c => c.name.toLowerCase() === cat.name.toLowerCase())
+  );
 
   const [formData, setFormData] = useState({
     description: '',
@@ -253,7 +260,7 @@ export function Expenses() {
           className="bg-[#181825] border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
         >
           <option value="">Todas las categorías</option>
-          {categories.map(cat => (
+          {uniqueCategories.map(cat => (
             <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>
           ))}
         </select>
@@ -315,7 +322,11 @@ export function Expenses() {
                   const StatusIcon = status.icon;
                   
                   return (
-                    <tr key={expense.id} className="border-b border-gray-700/50 hover:bg-[#1e1e2e] transition-colors">
+                    <tr 
+                      key={expense.id} 
+                      className="border-b border-gray-700/50 hover:bg-[#1e1e2e] transition-colors cursor-pointer"
+                      onClick={() => setViewingExpense(expense)}
+                    >
                       <td className="p-4">
                         <div>
                           <p className="text-white font-medium">{expense.description}</p>
@@ -350,58 +361,16 @@ export function Expenses() {
                           {status.label}
                         </span>
                       </td>
-                      <td className="p-4 text-right">
-                        <div className="relative">
+                      <td className="p-4 text-right" onClick={(e) => e.stopPropagation()}>
                           <button
-                            onClick={() => setActiveMenu(activeMenu === expense.id ? null : expense.id)}
+                            onClick={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setActiveMenu(activeMenu?.id === expense.id ? null : { id: expense.id, x: rect.right, y: rect.top });
+                            }}
                             className="p-2 rounded-lg hover:bg-[#11111b] text-gray-400 hover:text-white transition-colors"
                           >
                             <MoreVertical size={16} />
                           </button>
-                          
-                          {activeMenu === expense.id && (
-                            <>
-                              <div 
-                                className="fixed inset-0 z-10"
-                                onClick={() => setActiveMenu(null)}
-                              />
-                              <div className="absolute right-0 bottom-full mb-1 bg-[#1e1e2e] border border-gray-700 rounded-lg shadow-xl z-20 py-1 min-w-[140px]">
-                                <button
-                                  onClick={() => {
-                                    handleOpenModal(expense);
-                                    setActiveMenu(null);
-                                  }}
-                                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-300 hover:bg-[#181825]"
-                                >
-                                  <Edit size={14} />
-                                  Editar
-                                </button>
-                                {expense.status === 'pending' && (
-                                  <button
-                                    onClick={() => {
-                                      updateExpense(expense.id, { status: 'paid' });
-                                      setActiveMenu(null);
-                                    }}
-                                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-green-400 hover:bg-[#181825]"
-                                  >
-                                    <CheckCircle size={14} />
-                                    Marcar Pagado
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => {
-                                    setDeleteModal({ isOpen: true, id: expense.id });
-                                    setActiveMenu(null);
-                                  }}
-                                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-400 hover:bg-[#181825]"
-                                >
-                                  <Trash2 size={14} />
-                                  Eliminar
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </div>
                       </td>
                     </tr>
                   );
@@ -411,6 +380,76 @@ export function Expenses() {
           </table>
         </div>
       </div>
+
+      {/* Menú de acciones flotante */}
+      {activeMenu && (
+        <>
+          <div 
+            className="fixed inset-0 z-40"
+            onClick={() => setActiveMenu(null)}
+          />
+          <div 
+            className="fixed bg-[#1e1e2e] border border-gray-700 rounded-lg shadow-xl z-50 py-1 min-w-[160px]"
+            style={{ 
+              top: activeMenu.y, 
+              left: activeMenu.x - 160,
+            }}
+          >
+            {(() => {
+              const expense = expenses.find(e => e.id === activeMenu.id);
+              if (!expense) return null;
+              return (
+                <>
+                  <button
+                    onClick={() => {
+                      setViewingExpense(expense);
+                      setActiveMenu(null);
+                    }}
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-300 hover:bg-[#181825]"
+                  >
+                    <Eye size={14} />
+                    Ver detalles
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleOpenModal(expense);
+                      setActiveMenu(null);
+                    }}
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-300 hover:bg-[#181825]"
+                  >
+                    <Edit size={14} />
+                    Editar
+                  </button>
+                  {expense.status === 'pending' && (
+                    <button
+                      onClick={async () => {
+                        await updateExpense(expense.id, { status: 'paid' });
+                        setActiveMenu(null);
+                        fetchExpenses();
+                      }}
+                      className="flex items-center gap-2 w-full px-4 py-2 text-sm text-green-400 hover:bg-[#181825]"
+                    >
+                      <CheckCircle size={14} />
+                      Marcar Pagado
+                    </button>
+                  )}
+                  <div className="border-t border-gray-700 my-1" />
+                  <button
+                    onClick={() => {
+                      setDeleteModal({ isOpen: true, id: expense.id });
+                      setActiveMenu(null);
+                    }}
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-400 hover:bg-[#181825]"
+                  >
+                    <Trash2 size={14} />
+                    Eliminar
+                  </button>
+                </>
+              );
+            })()}
+          </div>
+        </>
+      )}
 
       {/* Modal de crear/editar */}
       {showModal && (
@@ -513,7 +552,7 @@ export function Expenses() {
                       >
                         Sin categoría
                       </button>
-                      {categories.map(cat => (
+                      {uniqueCategories.map(cat => (
                         <button
                           key={cat.id}
                           type="button"
@@ -611,6 +650,117 @@ export function Expenses() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de detalles del gasto */}
+      {viewingExpense && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setViewingExpense(null)}>
+          <div 
+            className="bg-[#181825] rounded-xl border border-gray-700 w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 border-b border-gray-700 flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-white">Detalle del Gasto</h2>
+              <button
+                onClick={() => setViewingExpense(null)}
+                className="p-2 rounded-lg hover:bg-[#1e1e2e] text-gray-400"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <p className="text-gray-400 text-sm">Descripción</p>
+                <p className="text-white font-medium text-lg">{viewingExpense.description}</p>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-gray-400 text-sm">Monto</p>
+                  <p className="text-white font-bold text-xl">{formatCurrency(viewingExpense.amount, viewingExpense.currency)}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-sm">Estado</p>
+                  <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-sm font-medium ${statusConfig[viewingExpense.status].color}`}>
+                    {statusConfig[viewingExpense.status].label}
+                  </span>
+                </div>
+              </div>
+
+              {viewingExpense.category && (
+                <div>
+                  <p className="text-gray-400 text-sm">Categoría</p>
+                  <span 
+                    className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-sm"
+                    style={{ backgroundColor: `${viewingExpense.category.color}20`, color: viewingExpense.category.color }}
+                  >
+                    {viewingExpense.category.icon} {viewingExpense.category.name}
+                  </span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-gray-400 text-sm">Fecha</p>
+                  <p className="text-white">{format(parseISO(viewingExpense.expense_date), "d 'de' MMMM, yyyy", { locale: es })}</p>
+                </div>
+                {viewingExpense.payment_method && (
+                  <div>
+                    <p className="text-gray-400 text-sm">Método de pago</p>
+                    <p className="text-white capitalize">{viewingExpense.payment_method === 'card' ? 'Tarjeta' : viewingExpense.payment_method === 'cash' ? 'Efectivo' : viewingExpense.payment_method === 'transfer' ? 'Transferencia' : viewingExpense.payment_method}</p>
+                  </div>
+                )}
+              </div>
+
+              {viewingExpense.vendor && (
+                <div>
+                  <p className="text-gray-400 text-sm">Proveedor</p>
+                  <p className="text-white">{viewingExpense.vendor}</p>
+                </div>
+              )}
+
+              {viewingExpense.invoice_number && (
+                <div>
+                  <p className="text-gray-400 text-sm">N° Factura</p>
+                  <p className="text-white">{viewingExpense.invoice_number}</p>
+                </div>
+              )}
+
+              {viewingExpense.notes && (
+                <div>
+                  <p className="text-gray-400 text-sm">Notas</p>
+                  <p className="text-gray-300">{viewingExpense.notes}</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="p-6 border-t border-gray-700 flex gap-3">
+              <button
+                onClick={() => {
+                  handleOpenModal(viewingExpense);
+                  setViewingExpense(null);
+                }}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+              >
+                <Edit size={16} />
+                Editar
+              </button>
+              {viewingExpense.status === 'pending' && (
+                <button
+                  onClick={async () => {
+                    await updateExpense(viewingExpense.id, { status: 'paid' });
+                    setViewingExpense(null);
+                    fetchExpenses();
+                  }}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <CheckCircle size={16} />
+                  Marcar Pagado
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

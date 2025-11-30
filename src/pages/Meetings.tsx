@@ -10,6 +10,7 @@ import {
   UserPlus,
   Phone,
   PhoneOff,
+  ExternalLink,
 } from 'lucide-react';
 import { useMeetingsStore } from '../store/meetingsStore';
 import { useTeamStore } from '../store/teamStore';
@@ -21,21 +22,6 @@ import { es } from 'date-fns/locale';
 
 // Configuración de JaaS (Jitsi as a Service)
 const JAAS_APP_ID = 'vpaas-magic-cookie-1ce7135e1c534d72904f14bcef702bc4';
-
-// Detectar si estamos en Tauri (app de escritorio) - múltiples métodos
-const isTauri = typeof window !== 'undefined' && (
-  '__TAURI__' in window || 
-  '__TAURI_INTERNALS__' in window ||
-  window.navigator.userAgent.includes('Tauri')
-);
-
-// Detectar si estamos en un entorno de escritorio (no navegador normal)
-const isDesktopApp = typeof window !== 'undefined' && (
-  isTauri ||
-  !window.navigator.userAgent.includes('Chrome') && 
-  !window.navigator.userAgent.includes('Firefox') &&
-  window.navigator.userAgent.includes('WebKit')
-);
 
 export function Meetings() {
   const { user } = useAuthStore();
@@ -85,31 +71,28 @@ export function Meetings() {
     fetchMeetings();
   };
 
-  const handleJoinMeeting = async (meeting: Meeting) => {
+  const handleJoinMeeting = (meeting: Meeting) => {
+    // Unirse desde la app (iframe)
+    setShowVideoCall(meeting);
+    updateMeetingStatus(meeting.id, 'in_progress');
+  };
+
+  const handleJoinInBrowser = async (meeting: Meeting) => {
     const roomName = `${JAAS_APP_ID}/${meeting.room_name}`;
     const jitsiUrl = `https://8x8.vc/${roomName}`;
     
-    console.log('isTauri:', isTauri, 'isDesktopApp:', isDesktopApp);
-    console.log('User Agent:', window.navigator.userAgent);
-    
-    // En app de escritorio, SIEMPRE abrir en navegador externo
-    if (isDesktopApp) {
-      try {
-        // Intentar con el plugin opener de Tauri
-        const { openUrl } = await import('@tauri-apps/plugin-opener');
-        console.log('Abriendo con Tauri opener:', jitsiUrl);
-        await openUrl(jitsiUrl);
-        updateMeetingStatus(meeting.id, 'in_progress');
-      } catch (error) {
-        console.error('Error con Tauri opener, intentando xdg-open:', error);
-        // Fallback: mostrar instrucciones al usuario
-        alert(`Por favor abre esta URL en tu navegador:\n\n${jitsiUrl}`);
-        // Copiar al portapapeles
+    try {
+      // Intentar con el plugin opener de Tauri
+      const { openUrl } = await import('@tauri-apps/plugin-opener');
+      await openUrl(jitsiUrl);
+      updateMeetingStatus(meeting.id, 'in_progress');
+    } catch (error) {
+      // Fallback: window.open o copiar al portapapeles
+      const opened = window.open(jitsiUrl, '_blank');
+      if (!opened) {
         navigator.clipboard.writeText(jitsiUrl);
+        alert(`URL copiada al portapapeles:\n\n${jitsiUrl}`);
       }
-    } else {
-      // En navegador web normal, usar el iframe integrado
-      setShowVideoCall(meeting);
       updateMeetingStatus(meeting.id, 'in_progress');
     }
   };
@@ -220,6 +203,7 @@ export function Meetings() {
                 key={meeting.id}
                 meeting={meeting}
                 onJoin={() => handleJoinMeeting(meeting)}
+                onJoinBrowser={() => handleJoinInBrowser(meeting)}
                 onDelete={() => setDeleteModal({ isOpen: true, meetingId: meeting.id })}
                 statusBadge={getStatusBadge(meeting)}
                 isCreator={meeting.created_by === user?.id}
@@ -257,6 +241,7 @@ export function Meetings() {
                 key={meeting.id}
                 meeting={meeting}
                 onJoin={() => handleJoinMeeting(meeting)}
+                onJoinBrowser={() => handleJoinInBrowser(meeting)}
                 onDelete={() => setDeleteModal({ isOpen: true, meetingId: meeting.id })}
                 statusBadge={getStatusBadge(meeting)}
                 isCreator={meeting.created_by === user?.id}
@@ -278,6 +263,7 @@ export function Meetings() {
                 key={meeting.id}
                 meeting={meeting}
                 onJoin={() => {}}
+                onJoinBrowser={() => {}}
                 onDelete={() => setDeleteModal({ isOpen: true, meetingId: meeting.id })}
                 statusBadge={getStatusBadge(meeting)}
                 isCreator={meeting.created_by === user?.id}
@@ -415,6 +401,7 @@ export function Meetings() {
 function MeetingCard({ 
   meeting, 
   onJoin, 
+  onJoinBrowser,
   onDelete, 
   statusBadge, 
   isCreator,
@@ -422,6 +409,7 @@ function MeetingCard({
 }: { 
   meeting: Meeting; 
   onJoin: () => void; 
+  onJoinBrowser: () => void;
   onDelete: () => void;
   statusBadge: React.ReactNode;
   isCreator: boolean;
@@ -456,13 +444,23 @@ function MeetingCard({
 
         <div className="flex items-center gap-2">
           {!disabled && meeting.status !== 'completed' && (
-            <button
-              onClick={onJoin}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-            >
-              <Phone size={16} />
-              Unirse
-            </button>
+            <>
+              <button
+                onClick={onJoin}
+                className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm"
+              >
+                <Phone size={16} />
+                Unirse
+              </button>
+              <button
+                onClick={onJoinBrowser}
+                className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                title="Abrir en navegador externo"
+              >
+                <ExternalLink size={16} />
+                Navegador
+              </button>
+            </>
           )}
           {isCreator && (
             <button
