@@ -98,13 +98,6 @@ export function Sidebar() {
 
       {/* Bottom actions */}
       <div className="p-2 border-t border-gray-700">
-        <NavLink
-          to="/settings"
-          className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-[#1e1e2e] transition-colors"
-        >
-          <Settings size={20} />
-          <span>Configuración</span>
-        </NavLink>
         <button
           onClick={handleLogout}
           className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-[#1e1e2e] transition-colors w-full"
