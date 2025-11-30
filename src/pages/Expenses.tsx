@@ -420,7 +420,7 @@ export function Expenses() {
                     <Edit size={14} />
                     Editar
                   </button>
-                  {expense.status === 'pending' && (
+                  {expense.status === 'pending' ? (
                     <button
                       onClick={async () => {
                         await updateExpense(expense.id, { status: 'paid' });
@@ -431,6 +431,18 @@ export function Expenses() {
                     >
                       <CheckCircle size={14} />
                       Marcar Pagado
+                    </button>
+                  ) : (
+                    <button
+                      onClick={async () => {
+                        await updateExpense(expense.id, { status: 'pending' });
+                        setActiveMenu(null);
+                        fetchExpenses();
+                      }}
+                      className="flex items-center gap-2 w-full px-4 py-2 text-sm text-yellow-400 hover:bg-[#181825]"
+                    >
+                      <Clock size={14} />
+                      Marcar Pendiente
                     </button>
                   )}
                   <div className="border-t border-gray-700 my-1" />
