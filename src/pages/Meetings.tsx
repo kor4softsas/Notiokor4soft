@@ -73,15 +73,22 @@ export function Meetings() {
     fetchMeetings();
   };
 
-  const handleJoinMeeting = (meeting: Meeting) => {
+  const handleJoinMeeting = async (meeting: Meeting) => {
     const roomName = `${JAAS_APP_ID}/${meeting.room_name}`;
     const jitsiUrl = `https://8x8.vc/${roomName}`;
     
     // En Tauri (Linux/Windows/Mac), abrir en navegador externo por mejor soporte WebRTC
     if (isTauri) {
-      // Abrir en el navegador del sistema
-      window.open(jitsiUrl, '_blank');
-      updateMeetingStatus(meeting.id, 'in_progress');
+      try {
+        // Usar el plugin opener de Tauri para abrir en el navegador del sistema
+        const { openUrl } = await import('@tauri-apps/plugin-opener');
+        await openUrl(jitsiUrl);
+        updateMeetingStatus(meeting.id, 'in_progress');
+      } catch (error) {
+        console.error('Error abriendo URL:', error);
+        // Fallback: intentar con window.open
+        window.open(jitsiUrl, '_blank');
+      }
     } else {
       // En navegador web, usar el iframe integrado
       setShowVideoCall(meeting);
