@@ -1,4 +1,5 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   ClipboardList,
@@ -14,6 +15,7 @@ import {
   DollarSign,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import { useChatStore } from '../store/chatStore';
 import { NotificationsDropdown } from './NotificationsDropdown';
 
 const navItems = [
@@ -31,7 +33,23 @@ const navItems = [
 
 export function Sidebar() {
   const { user, logout } = useAuthStore();
+  const { hasUnreadMessages, unreadCount, checkUnreadMessages, subscribeToAllMessages, markAsRead } = useChatStore();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Verificar mensajes no leídos al montar y suscribirse a nuevos
+  useEffect(() => {
+    checkUnreadMessages();
+    const unsubscribe = subscribeToAllMessages();
+    return () => unsubscribe();
+  }, [checkUnreadMessages, subscribeToAllMessages]);
+
+  // Marcar como leído cuando el usuario está en /chat
+  useEffect(() => {
+    if (location.pathname === '/chat') {
+      markAsRead();
+    }
+  }, [location.pathname, markAsRead]);
 
   const handleLogout = async () => {
     await logout();
@@ -78,22 +96,37 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 p-2 overflow-y-auto">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-2.5 rounded-lg mb-1 transition-colors ${
-                isActive
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-400 hover:text-white hover:bg-[#1e1e2e]'
-              }`
-            }
-          >
-            <item.icon size={20} />
-            <span>{item.label}</span>
-          </NavLink>
-        ))}
+        {navItems.map((item) => {
+          const isChat = item.to === '/chat';
+          const showBadge = isChat && hasUnreadMessages;
+          
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-4 py-2.5 rounded-lg mb-1 transition-colors ${
+                  isActive
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-400 hover:text-white hover:bg-[#1e1e2e]'
+                }`
+              }
+            >
+              <div className="relative">
+                <item.icon size={20} />
+                {showBadge && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+                )}
+              </div>
+              <span className="flex-1">{item.label}</span>
+              {showBadge && unreadCount > 0 && (
+                <span className="px-1.5 py-0.5 text-xs bg-red-500 text-white rounded-full min-w-[20px] text-center">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </NavLink>
+          );
+        })}
       </nav>
 
       {/* Bottom actions */}

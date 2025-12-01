@@ -7,6 +7,8 @@ interface ChatState {
   currentChannel: ChatChannel | null;
   isLoading: boolean;
   isLoadingMessages: boolean;
+  unreadCount: number;
+  hasUnreadMessages: boolean;
   
   fetchChannels: () => Promise<void>;
   fetchMessages: (channelId: string) => Promise<void>;
@@ -16,7 +18,10 @@ interface ChatState {
   createChannel: (name: string, description?: string, type?: 'public' | 'private') => Promise<{ error: string | null }>;
   setCurrentChannel: (channel: ChatChannel | null) => void;
   subscribeToMessages: (channelId: string) => () => void;
+  subscribeToAllMessages: () => () => void;
   addMessage: (message: ChatMessage) => void;
+  markAsRead: () => void;
+  checkUnreadMessages: () => Promise<void>;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -25,6 +30,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   currentChannel: null,
   isLoading: false,
   isLoadingMessages: false,
+  unreadCount: 0,
+  hasUnreadMessages: false,
 
   fetchChannels: async () => {
     if (!isSupabaseConfigured || !supabase) {
@@ -271,5 +278,79 @@ export const useChatStore = create<ChatState>((set, get) => ({
         supabaseClient.removeChannel(channel);
       }
     };
+  },
+
+  // Suscribirse a TODOS los mensajes nuevos (para notificaciones globales)
+  subscribeToAllMessages: () => {
+    if (!isSupabaseConfigured || !supabase) {
+      return () => {};
+    }
+
+    const supabaseClient = supabase;
+    let isSubscribed = false;
+    
+    const channel = supabaseClient
+      .channel('chat-all-messages')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages',
+        },
+        async (payload) => {
+          // Verificar si el mensaje es de otro usuario
+          const { data: { user } } = await supabaseClient.auth.getUser();
+          if (user && payload.new.user_id !== user.id) {
+            // Hay un mensaje nuevo de otro usuario
+            set((state) => ({
+              unreadCount: state.unreadCount + 1,
+              hasUnreadMessages: true,
+            }));
+          }
+        }
+      )
+      .subscribe((status) => {
+        isSubscribed = status === 'SUBSCRIBED';
+      });
+
+    return () => {
+      if (isSubscribed) {
+        supabaseClient.removeChannel(channel);
+      }
+    };
+  },
+
+  // Marcar todos los mensajes como leídos
+  markAsRead: () => {
+    localStorage.setItem('chat_last_read', new Date().toISOString());
+    set({ unreadCount: 0, hasUnreadMessages: false });
+  },
+
+  // Verificar mensajes no leídos al iniciar
+  checkUnreadMessages: async () => {
+    if (!isSupabaseConfigured || !supabase) {
+      return;
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const lastRead = localStorage.getItem('chat_last_read');
+      const lastReadDate = lastRead ? new Date(lastRead) : new Date(0);
+
+      const { count, error } = await supabase
+        .from('chat_messages')
+        .select('*', { count: 'exact', head: true })
+        .neq('user_id', user.id)
+        .gt('created_at', lastReadDate.toISOString());
+
+      if (!error && count && count > 0) {
+        set({ unreadCount: count, hasUnreadMessages: true });
+      }
+    } catch (error) {
+      console.error('Error checking unread messages:', error);
+    }
   },
 }));
