@@ -57,6 +57,7 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (email, password, rememberMe = false) => {
         // Guardar preferencia de sesión
+        console.log('[Auth] Login con rememberMe:', rememberMe);
         set({ rememberMe });
         
         // Modo demo si no hay Supabase configurado
@@ -76,7 +77,15 @@ export const useAuthStore = create<AuthState>()(
           });
 
           if (error) {
-            return { error: error.message };
+            // Traducir mensajes de error comunes
+            const errorMessages: Record<string, string> = {
+              'Invalid login credentials': 'Credenciales de inicio de sesión inválidas',
+              'Email not confirmed': 'El correo electrónico no ha sido confirmado',
+              'User not found': 'Usuario no encontrado',
+              'Invalid email or password': 'Correo o contraseña inválidos',
+              'Too many requests': 'Demasiados intentos, espera un momento',
+            };
+            return { error: errorMessages[error.message] || error.message };
           }
 
           if (data.user) {
@@ -183,10 +192,18 @@ export const useAuthStore = create<AuthState>()(
       },
 
       // Verificar si debe mantener la sesión o cerrarla
-      // Solo cierra sesión cuando se CIERRA la app, no al recargar
+      // Solo cierra sesión cuando se CIERRA la app (no al recargar) Y rememberMe es false
       checkRememberMe: () => {
         const state = useAuthStore.getState();
         
+        // Si el usuario marcó "Mantener sesión abierta", no hacer nada
+        // La sesión se mantiene gracias a localStorage (zustand persist)
+        if (state.rememberMe) {
+          sessionStorage.setItem('app_session_active', 'true');
+          return;
+        }
+        
+        // Si NO marcó "Mantener sesión", verificar si es recarga o nuevo inicio
         // sessionStorage persiste durante la sesión del navegador/app
         // Se borra cuando se cierra la ventana/app, pero NO al recargar
         const isPageReload = sessionStorage.getItem('app_session_active');
@@ -196,13 +213,11 @@ export const useAuthStore = create<AuthState>()(
           return;
         }
         
-        // Marcar que la sesión está activa (para detectar recargas)
+        // Es un nuevo inicio de la app Y rememberMe es false
+        // Cerrar sesión
         sessionStorage.setItem('app_session_active', 'true');
         
-        // Si no tiene "Recordarme" activo y hay sesión, cerrar sesión
-        // Esto solo ocurre cuando se abre la app por primera vez
-        if (!state.rememberMe && state.isAuthenticated) {
-          // Cerrar sesión porque no quería permanecer logueado
+        if (state.isAuthenticated) {
           if (supabase) {
             supabase.auth.signOut();
           }
@@ -218,6 +233,42 @@ export const useAuthStore = create<AuthState>()(
         isAuthenticated: state.isAuthenticated,
         rememberMe: state.rememberMe,
       }),
+      onRehydrateStorage: () => (state) => {
+        // Este callback se ejecuta DESPUÉS de cargar los datos de localStorage
+        console.log('[Auth] Rehidratando estado:', { 
+          rememberMe: state?.rememberMe, 
+          isAuthenticated: state?.isAuthenticated,
+          hasUser: !!state?.user 
+        });
+        
+        if (!state) return;
+        
+        // Si el usuario marcó "Mantener sesión abierta", no hacer nada
+        if (state.rememberMe) {
+          console.log('[Auth] rememberMe activo - manteniendo sesión');
+          sessionStorage.setItem('app_session_active', 'true');
+          return;
+        }
+        
+        // Si NO marcó "Mantener sesión", verificar si es nuevo inicio
+        const isPageReload = sessionStorage.getItem('app_session_active');
+        
+        if (isPageReload) {
+          console.log('[Auth] Es recarga de página - manteniendo sesión');
+          return;
+        }
+        
+        // Es un nuevo inicio de la app Y rememberMe es false - cerrar sesión
+        console.log('[Auth] Nuevo inicio sin rememberMe - cerrando sesión');
+        sessionStorage.setItem('app_session_active', 'true');
+        
+        if (state.isAuthenticated) {
+          if (supabase) {
+            supabase.auth.signOut();
+          }
+          useAuthStore.setState({ user: null, session: null, isAuthenticated: false });
+        }
+      },
     }
   )
 );

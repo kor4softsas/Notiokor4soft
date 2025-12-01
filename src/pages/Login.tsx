@@ -86,7 +86,10 @@ export function Login() {
                 <input
                   type="checkbox"
                   checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
+                  onChange={(e) => {
+                    console.log('[Login] Checkbox cambiado a:', e.target.checked);
+                    setRememberMe(e.target.checked);
+                  }}
                   className="sr-only peer"
                 />
                 <div className="w-5 h-5 border-2 border-gray-600 rounded bg-[#11111b] peer-checked:bg-blue-600 peer-checked:border-blue-600 transition-colors" />

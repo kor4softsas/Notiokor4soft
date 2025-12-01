@@ -37,14 +37,18 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <Layout>{children}</Layout>;
 }
 
+// Redirigir según estado de autenticación
+function HomeRedirect() {
+  const { isAuthenticated } = useAuthStore();
+  return <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />;
+}
+
 function App() {
-  const { checkAuth, checkRememberMe } = useAuthStore();
+  const { checkAuth } = useAuthStore();
 
   useEffect(() => {
-    // Verificar si debe mantener la sesión o cerrarla
-    checkRememberMe();
     checkAuth();
-  }, [checkAuth, checkRememberMe]);
+  }, [checkAuth]);
 
   return (
     <BrowserRouter
@@ -75,9 +79,9 @@ function App() {
         <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
-        {/* Default redirect */}
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        {/* Default redirect - verifica autenticación */}
+        <Route path="/" element={<HomeRedirect />} />
+        <Route path="*" element={<HomeRedirect />} />
       </Routes>
     </BrowserRouter>
   );
