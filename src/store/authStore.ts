@@ -183,9 +183,24 @@ export const useAuthStore = create<AuthState>()(
       },
 
       // Verificar si debe mantener la sesión o cerrarla
+      // Solo cierra sesión cuando se CIERRA la app, no al recargar
       checkRememberMe: () => {
         const state = useAuthStore.getState();
+        
+        // sessionStorage persiste durante la sesión del navegador/app
+        // Se borra cuando se cierra la ventana/app, pero NO al recargar
+        const isPageReload = sessionStorage.getItem('app_session_active');
+        
+        if (isPageReload) {
+          // Es una recarga, no cerrar sesión
+          return;
+        }
+        
+        // Marcar que la sesión está activa (para detectar recargas)
+        sessionStorage.setItem('app_session_active', 'true');
+        
         // Si no tiene "Recordarme" activo y hay sesión, cerrar sesión
+        // Esto solo ocurre cuando se abre la app por primera vez
         if (!state.rememberMe && state.isAuthenticated) {
           // Cerrar sesión porque no quería permanecer logueado
           if (supabase) {
