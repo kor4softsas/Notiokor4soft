@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { LogIn, Mail, Lock, AlertCircle } from 'lucide-react';
+import { LogIn, Mail, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
 export function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -70,13 +71,20 @@ export function Login() {
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-[#11111b] border border-gray-600 rounded-lg py-3 pl-11 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-[#11111b] border border-gray-600 rounded-lg py-3 pl-11 pr-11 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
                   placeholder="••••••••"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
               </div>
             </div>
 
@@ -86,10 +94,7 @@ export function Login() {
                 <input
                   type="checkbox"
                   checked={rememberMe}
-                  onChange={(e) => {
-                    console.log('[Login] Checkbox cambiado a:', e.target.checked);
-                    setRememberMe(e.target.checked);
-                  }}
+                  onChange={(e) => setRememberMe(e.target.checked)}
                   className="sr-only peer"
                 />
                 <div className="w-5 h-5 border-2 border-gray-600 rounded bg-[#11111b] peer-checked:bg-blue-600 peer-checked:border-blue-600 transition-colors" />

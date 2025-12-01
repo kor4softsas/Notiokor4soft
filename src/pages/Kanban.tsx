@@ -90,6 +90,17 @@ export function Kanban() {
   const [draggedNote, setDraggedNote] = useState<Note | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<KanbanColumn | null>(null);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Manejar eliminación con mensaje de error
+  const handleDeleteNote = async (id: string) => {
+    const { error } = await deleteNote(id);
+    if (error) {
+      setErrorMessage(error);
+      setTimeout(() => setErrorMessage(null), 4000);
+    }
+    setActiveMenu(null);
+  };
 
   useEffect(() => {
     fetchNotes();
@@ -362,10 +373,7 @@ export function Kanban() {
                                         Editar
                                       </button>
                                       <button
-                                        onClick={() => {
-                                          deleteNote(note.id);
-                                          setActiveMenu(null);
-                                        }}
+                                        onClick={() => handleDeleteNote(note.id)}
                                         className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-400 hover:bg-[#181825]"
                                       >
                                         <Trash2 size={14} />
@@ -454,6 +462,14 @@ export function Kanban() {
                             </div>
                           )}
 
+                          {/* Creador */}
+                          {note.creator && (
+                            <div className="flex items-center gap-1.5 mt-2 text-xs text-gray-500">
+                              <span>Creado por:</span>
+                              <span className="text-gray-400">{note.creator.full_name}</span>
+                            </div>
+                          )}
+
                           {/* Drag handle indicator */}
                           <div className="absolute top-1/2 left-1 -translate-y-1/2 opacity-0 group-hover:opacity-30 transition-opacity">
                             <GripVertical size={14} className="text-gray-500" />
@@ -479,6 +495,20 @@ export function Kanban() {
           })}
         </div>
       </div>
+
+      {/* Toast de error */}
+      {errorMessage && (
+        <div className="fixed bottom-4 right-4 bg-red-500/90 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50">
+          <AlertCircle size={20} />
+          <span>{errorMessage}</span>
+          <button 
+            onClick={() => setErrorMessage(null)}
+            className="ml-2 hover:bg-red-600 rounded p-1"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 }

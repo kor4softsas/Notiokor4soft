@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   FileText, 
@@ -43,12 +43,22 @@ export function Dashboard() {
   const { meetings, fetchMeetings } = useMeetingsStore();
   const { currentSprint, fetchSprints } = useSprintStore();
   const { contextMenu, handleContextMenu, closeContextMenu } = useContextMenu();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     fetchNotes();
     fetchMeetings();
     fetchSprints();
   }, [fetchNotes, fetchMeetings, fetchSprints]);
+
+  // Manejar eliminación con mensaje de error
+  const handleDeleteNote = async (id: string) => {
+    const { error } = await deleteNote(id);
+    if (error) {
+      setErrorMessage(error);
+      setTimeout(() => setErrorMessage(null), 4000);
+    }
+  };
 
   const greeting = getGreeting();
   const GreetingIcon = greeting.icon;
@@ -348,9 +358,12 @@ export function Dashboard() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-medium truncate">{note.title}</p>
-                      <p className="text-gray-500 text-sm">
-                        Actualizado {format(parseISO(note.updated_at), "d MMM, HH:mm", { locale: es })}
-                      </p>
+                      <div className="flex items-center gap-2 text-gray-500 text-sm">
+                        <span>Actualizado {format(parseISO(note.updated_at), "d MMM, HH:mm", { locale: es })}</span>
+                        {note.creator && (
+                          <span className="text-gray-600">• por {note.creator.full_name}</span>
+                        )}
+                      </div>
                     </div>
                     <span className={`px-2 py-1 rounded text-xs font-medium ${
                       note.status === 'completed' ? 'bg-green-500/20 text-green-400' :
@@ -459,11 +472,25 @@ export function Dashboard() {
             {
               label: 'Eliminar',
               icon: <Trash2 size={16} />,
-              onClick: () => deleteNote(contextMenu.data.id),
+              onClick: () => handleDeleteNote(contextMenu.data.id),
               variant: 'danger',
             },
           ]}
         />
+      )}
+
+      {/* Toast de error */}
+      {errorMessage && (
+        <div className="fixed bottom-4 right-4 bg-red-500/90 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-in slide-in-from-bottom-5 z-50">
+          <AlertCircle size={20} />
+          <span>{errorMessage}</span>
+          <button 
+            onClick={() => setErrorMessage(null)}
+            className="ml-2 hover:bg-red-600 rounded p-1"
+          >
+            ✕
+          </button>
+        </div>
       )}
     </div>
   );

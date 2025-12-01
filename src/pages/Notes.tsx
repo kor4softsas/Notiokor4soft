@@ -12,6 +12,7 @@ import {
   Edit,
   Copy,
   ExternalLink,
+  AlertCircle,
 } from 'lucide-react';
 import { useNotesStore } from '../store/notesStore';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -45,6 +46,7 @@ export function Notes() {
     noteId: null,
     noteTitle: '',
   });
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const { contextMenu, handleContextMenu, closeContextMenu } = useContextMenu();
 
   useEffect(() => {
@@ -63,7 +65,11 @@ export function Notes() {
 
   const handleDelete = async () => {
     if (deleteModal.noteId) {
-      await deleteNote(deleteModal.noteId);
+      const { error } = await deleteNote(deleteModal.noteId);
+      if (error) {
+        setErrorMessage(error);
+        setTimeout(() => setErrorMessage(null), 4000);
+      }
     }
     setDeleteModal({ isOpen: false, noteId: null, noteTitle: '' });
   };
@@ -190,6 +196,13 @@ export function Notes() {
               <h3 className="text-white font-medium mb-2 line-clamp-2">{note.title}</h3>
               <p className="text-gray-400 text-sm line-clamp-3 mb-4">{note.content}</p>
 
+              {/* Creador */}
+              {note.creator && (
+                <div className="text-xs text-gray-500 mb-3">
+                  Creado por: <span className="text-gray-400">{note.creator.full_name}</span>
+                </div>
+              )}
+
               {/* Card Footer */}
               <div className="flex items-center justify-between pt-3 border-t border-gray-700">
                 <span className={`px-2 py-1 rounded text-xs font-medium ${statusColors[note.status]}`}>
@@ -261,6 +274,20 @@ export function Notes() {
             },
           ]}
         />
+      )}
+
+      {/* Toast de error */}
+      {errorMessage && (
+        <div className="fixed bottom-4 right-4 bg-red-500/90 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50">
+          <AlertCircle size={20} />
+          <span>{errorMessage}</span>
+          <button 
+            onClick={() => setErrorMessage(null)}
+            className="ml-2 hover:bg-red-600 rounded p-1"
+          >
+            ✕
+          </button>
+        </div>
       )}
     </div>
   );

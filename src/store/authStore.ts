@@ -57,7 +57,6 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (email, password, rememberMe = false) => {
         // Guardar preferencia de sesión
-        console.log('[Auth] Login con rememberMe:', rememberMe);
         set({ rememberMe });
         
         // Modo demo si no hay Supabase configurado
@@ -235,17 +234,10 @@ export const useAuthStore = create<AuthState>()(
       }),
       onRehydrateStorage: () => (state) => {
         // Este callback se ejecuta DESPUÉS de cargar los datos de localStorage
-        console.log('[Auth] Rehidratando estado:', { 
-          rememberMe: state?.rememberMe, 
-          isAuthenticated: state?.isAuthenticated,
-          hasUser: !!state?.user 
-        });
-        
         if (!state) return;
         
         // Si el usuario marcó "Mantener sesión abierta", no hacer nada
         if (state.rememberMe) {
-          console.log('[Auth] rememberMe activo - manteniendo sesión');
           sessionStorage.setItem('app_session_active', 'true');
           return;
         }
@@ -254,12 +246,10 @@ export const useAuthStore = create<AuthState>()(
         const isPageReload = sessionStorage.getItem('app_session_active');
         
         if (isPageReload) {
-          console.log('[Auth] Es recarga de página - manteniendo sesión');
           return;
         }
         
         // Es un nuevo inicio de la app Y rememberMe es false - cerrar sesión
-        console.log('[Auth] Nuevo inicio sin rememberMe - cerrando sesión');
         sessionStorage.setItem('app_session_active', 'true');
         
         if (state.isAuthenticated) {

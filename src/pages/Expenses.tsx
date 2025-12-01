@@ -300,19 +300,20 @@ export function Expenses() {
                 <th className="text-left p-4 text-gray-400 font-medium">Fecha</th>
                 <th className="text-right p-4 text-gray-400 font-medium">Monto</th>
                 <th className="text-left p-4 text-gray-400 font-medium">Estado</th>
+                <th className="text-left p-4 text-gray-400 font-medium">Creado por</th>
                 <th className="text-right p-4 text-gray-400 font-medium">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center">
+                  <td colSpan={7} className="p-8 text-center">
                     <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto" />
                   </td>
                 </tr>
               ) : filteredExpenses.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-gray-500">
+                  <td colSpan={7} className="p-8 text-center text-gray-500">
                     No hay gastos registrados
                   </td>
                 </tr>
@@ -360,6 +361,9 @@ export function Expenses() {
                           <StatusIcon size={12} />
                           {status.label}
                         </span>
+                      </td>
+                      <td className="p-4 text-gray-400 text-sm">
+                        {expense.creator?.full_name || '-'}
                       </td>
                       <td className="p-4 text-right" onClick={(e) => e.stopPropagation()}>
                           <button

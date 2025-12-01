@@ -280,6 +280,11 @@ export function Calendar() {
                               </span>
                             )}
                           </div>
+                          {note.creator && (
+                            <p className="text-xs text-gray-600 mt-1">
+                              Creado por: {note.creator.full_name}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
