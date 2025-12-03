@@ -11,6 +11,7 @@ import {
   Phone,
   PhoneOff,
   ExternalLink,
+  AlertCircle,
 } from 'lucide-react';
 import { useMeetingsStore } from '../store/meetingsStore';
 import { useTeamStore } from '../store/teamStore';
@@ -38,6 +39,7 @@ export function Meetings() {
     scheduled_at: '',
     duration_minutes: 60,
   });
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     fetchMeetings();
@@ -60,10 +62,16 @@ export function Meetings() {
   const handleCreateMeeting = async () => {
     if (!newMeeting.title || !newMeeting.scheduled_at) return;
 
-    await createMeeting({
+    const { error } = await createMeeting({
       ...newMeeting,
       created_by: user?.id,
     }, selectedParticipants);
+
+    if (error) {
+      setErrorMessage(error);
+      setTimeout(() => setErrorMessage(null), 5000);
+      return;
+    }
 
     setShowNewMeeting(false);
     setNewMeeting({ title: '', description: '', scheduled_at: '', duration_minutes: 60 });
@@ -393,6 +401,20 @@ export function Meetings() {
         confirmText="Eliminar"
         variant="danger"
       />
+
+      {/* Toast de error */}
+      {errorMessage && (
+        <div className="fixed bottom-4 right-4 bg-red-500/90 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50">
+          <AlertCircle size={20} />
+          <span>{errorMessage}</span>
+          <button 
+            onClick={() => setErrorMessage(null)}
+            className="ml-2 hover:bg-red-600 rounded p-1"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 }

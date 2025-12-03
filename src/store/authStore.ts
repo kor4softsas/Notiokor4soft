@@ -183,10 +183,21 @@ export const useAuthStore = create<AuthState>()(
               isLoading: false,
             });
           } else {
-            set({ isLoading: false });
+            // No hay sesión de Supabase activa - limpiar estado
+            set({ 
+              user: null, 
+              session: null, 
+              isAuthenticated: false, 
+              isLoading: false 
+            });
           }
         } catch {
-          set({ isLoading: false });
+          set({ 
+            user: null, 
+            session: null, 
+            isAuthenticated: false, 
+            isLoading: false 
+          });
         }
       },
 

@@ -70,6 +70,12 @@ export const useMeetingsStore = create<MeetingsState>((set) => ({
     }
 
     try {
+      // Verificar que hay sesión activa
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        return { error: 'Tu sesión ha expirado. Por favor, vuelve a iniciar sesión.' };
+      }
+
       const roomName = generateRoomName();
       const { data, error } = await supabase
         .from('meetings')
@@ -80,7 +86,12 @@ export const useMeetingsStore = create<MeetingsState>((set) => ({
         .select()
         .single();
 
-      if (error) return { error: error.message };
+      if (error) {
+        if (error.code === 'PGRST301' || error.message.includes('401')) {
+          return { error: 'Tu sesión ha expirado. Por favor, vuelve a iniciar sesión.' };
+        }
+        return { error: error.message };
+      }
 
       // Agregar participantes
       if (participantIds.length > 0) {
