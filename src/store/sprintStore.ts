@@ -5,20 +5,28 @@ interface SprintState {
   sprints: Sprint[];
   currentSprint: Sprint | null;
   isLoading: boolean;
+  _hasFetched: boolean;
   
-  fetchSprints: () => Promise<void>;
+  fetchSprints: (force?: boolean) => Promise<void>;
   createSprint: (sprint: Partial<Sprint>) => Promise<{ error: string | null }>;
   updateSprint: (id: string, updates: Partial<Sprint>) => Promise<{ error: string | null }>;
   deleteSprint: (id: string) => Promise<{ error: string | null }>;
   setCurrentSprint: (sprint: Sprint | null) => void;
 }
 
-export const useSprintStore = create<SprintState>((set) => ({
+export const useSprintStore = create<SprintState>((set, get) => ({
   sprints: [],
   currentSprint: null,
   isLoading: false,
+  _hasFetched: false,
 
-  fetchSprints: async () => {
+  fetchSprints: async (force = false) => {
+    const state = get();
+    // Evitar llamadas duplicadas
+    if (state.isLoading || (state._hasFetched && !force)) {
+      return;
+    }
+
     if (!isSupabaseConfigured || !supabase) {
       // Demo mode
       const demoSprints: Sprint[] = [
@@ -37,7 +45,8 @@ export const useSprintStore = create<SprintState>((set) => ({
       set({ 
         sprints: demoSprints, 
         currentSprint: demoSprints[0],
-        isLoading: false 
+        isLoading: false,
+        _hasFetched: true
       });
       return;
     }
@@ -57,11 +66,12 @@ export const useSprintStore = create<SprintState>((set) => ({
       set({ 
         sprints: data || [], 
         currentSprint: activeSprint,
-        isLoading: false 
+        isLoading: false,
+        _hasFetched: true 
       });
     } catch (error) {
       console.error('Error fetching sprints:', error);
-      set({ isLoading: false });
+      set({ isLoading: false, _hasFetched: true });
     }
   },
 

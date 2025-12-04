@@ -5,6 +5,7 @@ interface NotesState {
   notes: Note[];
   isLoading: boolean;
   selectedNote: Note | null;
+  _hasFetched: boolean;
   filter: {
     type: string | null;
     status: string | null;
@@ -13,7 +14,7 @@ interface NotesState {
   };
 
   // Actions
-  fetchNotes: () => Promise<void>;
+  fetchNotes: (force?: boolean) => Promise<void>;
   createNote: (note: Partial<Note>) => Promise<{ error: string | null }>;
   updateNote: (id: string, updates: Partial<Note>) => Promise<{ error: string | null }>;
   deleteNote: (id: string) => Promise<{ error: string | null }>;
@@ -28,6 +29,7 @@ export const useNotesStore = create<NotesState>()((set, get) => ({
   notes: [],
   isLoading: false,
   selectedNote: null,
+  _hasFetched: false,
   filter: {
     type: null,
     status: null,
@@ -35,10 +37,17 @@ export const useNotesStore = create<NotesState>()((set, get) => ({
     search: '',
   },
 
-  fetchNotes: async () => {
+  fetchNotes: async (force = false) => {
+    const state = get();
+    // Evitar llamadas duplicadas (excepto cuando hay filtros activos)
+    const hasActiveFilter = state.filter.type || state.filter.status || state.filter.priority || state.filter.search;
+    if (state.isLoading || (state._hasFetched && !force && !hasActiveFilter)) {
+      return;
+    }
+
     // En modo demo, las notas ya están en el estado local
     if (!isSupabaseConfigured || !supabase) {
-      set({ isLoading: false });
+      set({ isLoading: false, _hasFetched: true });
       return;
     }
 
@@ -61,10 +70,10 @@ export const useNotesStore = create<NotesState>()((set, get) => ({
 
       const { data, error } = await query;
       if (error) throw error;
-      set({ notes: data || [], isLoading: false });
+      set({ notes: data || [], isLoading: false, _hasFetched: true });
     } catch (error) {
       console.error('Error fetching notes:', error);
-      set({ isLoading: false });
+      set({ isLoading: false, _hasFetched: true });
     }
   },
 

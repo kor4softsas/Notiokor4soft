@@ -5,9 +5,11 @@ interface ExpensesState {
   expenses: Expense[];
   categories: ExpenseCategory[];
   isLoading: boolean;
+  _hasFetchedExpenses: boolean;
+  _hasFetchedCategories: boolean;
   
-  fetchExpenses: () => Promise<void>;
-  fetchCategories: () => Promise<void>;
+  fetchExpenses: (force?: boolean) => Promise<void>;
+  fetchCategories: (force?: boolean) => Promise<void>;
   createExpense: (expense: Partial<Expense>) => Promise<{ error: string | null }>;
   updateExpense: (id: string, updates: Partial<Expense>) => Promise<{ error: string | null }>;
   deleteExpense: (id: string) => Promise<{ error: string | null }>;
@@ -17,8 +19,13 @@ export const useExpensesStore = create<ExpensesState>((set, get) => ({
   expenses: [],
   categories: [],
   isLoading: false,
+  _hasFetchedExpenses: false,
+  _hasFetchedCategories: false,
 
-  fetchCategories: async () => {
+  fetchCategories: async (force = false) => {
+    const state = get();
+    if (state._hasFetchedCategories && !force) return;
+
     if (!isSupabaseConfigured || !supabase) {
       // Demo mode
       set({
@@ -31,6 +38,7 @@ export const useExpensesStore = create<ExpensesState>((set, get) => ({
           { id: 'cat-6', name: 'Marketing', icon: '📢', color: '#ec4899', created_at: new Date().toISOString() },
           { id: 'cat-7', name: 'Otros', icon: '📦', color: '#64748b', created_at: new Date().toISOString() },
         ],
+        _hasFetchedCategories: true,
       });
       return;
     }
@@ -42,13 +50,17 @@ export const useExpensesStore = create<ExpensesState>((set, get) => ({
         .order('name');
 
       if (error) throw error;
-      set({ categories: data || [] });
+      set({ categories: data || [], _hasFetchedCategories: true });
     } catch (error) {
       console.error('Error fetching categories:', error);
+      set({ _hasFetchedCategories: true });
     }
   },
 
-  fetchExpenses: async () => {
+  fetchExpenses: async (force = false) => {
+    const state = get();
+    if (state.isLoading || (state._hasFetchedExpenses && !force)) return;
+
     if (!isSupabaseConfigured || !supabase) {
       // Demo mode
       const categories = get().categories;
@@ -86,6 +98,7 @@ export const useExpensesStore = create<ExpensesState>((set, get) => ({
           },
         ],
         isLoading: false,
+        _hasFetchedExpenses: true,
       });
       return;
     }
@@ -102,10 +115,10 @@ export const useExpensesStore = create<ExpensesState>((set, get) => ({
         .order('expense_date', { ascending: false });
 
       if (error) throw error;
-      set({ expenses: data || [], isLoading: false });
+      set({ expenses: data || [], isLoading: false, _hasFetchedExpenses: true });
     } catch (error) {
       console.error('Error fetching expenses:', error);
-      set({ isLoading: false });
+      set({ isLoading: false, _hasFetchedExpenses: true });
     }
   },
 

@@ -5,8 +5,9 @@ interface NotificationsState {
   notifications: Notification[];
   unreadCount: number;
   isLoading: boolean;
+  _hasFetched: boolean;
   
-  fetchNotifications: () => Promise<void>;
+  fetchNotifications: (force?: boolean) => Promise<void>;
   markAsRead: (notificationId: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
   deleteNotification: (notificationId: string) => Promise<void>;
@@ -17,23 +18,26 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
   notifications: [],
   unreadCount: 0,
   isLoading: false,
+  _hasFetched: false,
 
-  fetchNotifications: async () => {
+  fetchNotifications: async (force = false) => {
+    const state = get();
+    // Evitar llamadas duplicadas
+    if (state.isLoading || (state._hasFetched && !force)) {
+      return;
+    }
+
     if (!isSupabaseConfigured || !supabase) {
-      console.log('[Notifications] Supabase not configured');
-      set({ isLoading: false });
+      set({ isLoading: false, _hasFetched: true });
       return;
     }
 
     set({ isLoading: true });
     try {
-      // Obtener el usuario actual
       const { data: { user } } = await supabase.auth.getUser();
-      console.log('[Notifications] Fetching for user:', user?.id);
       
       if (!user) {
-        console.log('[Notifications] No user logged in');
-        set({ isLoading: false });
+        set({ isLoading: false, _hasFetched: true });
         return;
       }
 
@@ -43,19 +47,17 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
           *,
           from_user:profiles!notifications_from_user_id_fkey(full_name, avatar_url)
         `)
-        .eq('user_id', user.id) // Filtrar explícitamente por usuario
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(50);
-
-      console.log('[Notifications] Fetch result:', { data, error });
 
       if (error) throw error;
       
       const unreadCount = (data || []).filter(n => !n.read).length;
-      set({ notifications: data || [], unreadCount, isLoading: false });
+      set({ notifications: data || [], unreadCount, isLoading: false, _hasFetched: true });
     } catch (error) {
       console.error('[Notifications] Error fetching:', error);
-      set({ isLoading: false });
+      set({ isLoading: false, _hasFetched: true });
     }
   },
 

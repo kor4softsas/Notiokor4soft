@@ -9,8 +9,10 @@ interface ChatState {
   isLoadingMessages: boolean;
   unreadCount: number;
   hasUnreadMessages: boolean;
+  _hasFetchedChannels: boolean;
+  _hasFetchedUnread: boolean;
   
-  fetchChannels: () => Promise<void>;
+  fetchChannels: (force?: boolean) => Promise<void>;
   fetchMessages: (channelId: string) => Promise<void>;
   sendMessage: (channelId: string, content: string, messageType?: 'text' | 'code', codeLanguage?: string) => Promise<{ error: string | null }>;
   editMessage: (messageId: string, content: string) => Promise<{ error: string | null }>;
@@ -21,7 +23,7 @@ interface ChatState {
   subscribeToAllMessages: () => () => void;
   addMessage: (message: ChatMessage) => void;
   markAsRead: () => void;
-  checkUnreadMessages: () => Promise<void>;
+  checkUnreadMessages: (force?: boolean) => Promise<void>;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -32,8 +34,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isLoadingMessages: false,
   unreadCount: 0,
   hasUnreadMessages: false,
+  _hasFetchedChannels: false,
+  _hasFetchedUnread: false,
 
-  fetchChannels: async () => {
+  fetchChannels: async (force = false) => {
+    const state = get();
+    // Evitar llamadas duplicadas
+    if (state.isLoading || (state._hasFetchedChannels && !force)) {
+      return;
+    }
+
     if (!isSupabaseConfigured || !supabase) {
       // Demo mode
       set({
@@ -43,6 +53,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           { id: 'demo-3', name: 'random', description: 'Conversaciones casuales', type: 'public', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
         ],
         isLoading: false,
+        _hasFetchedChannels: true,
       });
       return;
     }
@@ -60,11 +71,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({ 
         channels, 
         isLoading: false,
+        _hasFetchedChannels: true,
         currentChannel: get().currentChannel || channels[0] || null,
       });
     } catch (error) {
       console.error('Error fetching channels:', error);
-      set({ isLoading: false });
+      set({ isLoading: false, _hasFetchedChannels: true });
     }
   },
 
@@ -328,14 +340,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   // Verificar mensajes no leídos al iniciar
-  checkUnreadMessages: async () => {
+  checkUnreadMessages: async (force = false) => {
+    const state = get();
+    // Evitar llamadas duplicadas
+    if (state._hasFetchedUnread && !force) {
+      return;
+    }
+
     if (!isSupabaseConfigured || !supabase) {
+      set({ _hasFetchedUnread: true });
       return;
     }
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        set({ _hasFetchedUnread: true });
+        return;
+      }
 
       const lastRead = localStorage.getItem('chat_last_read');
       const lastReadDate = lastRead ? new Date(lastRead) : new Date(0);
@@ -347,10 +369,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         .gt('created_at', lastReadDate.toISOString());
 
       if (!error && count && count > 0) {
-        set({ unreadCount: count, hasUnreadMessages: true });
+        set({ unreadCount: count, hasUnreadMessages: true, _hasFetchedUnread: true });
+      } else {
+        set({ _hasFetchedUnread: true });
       }
     } catch (error) {
       console.error('Error checking unread messages:', error);
+      set({ _hasFetchedUnread: true });
     }
   },
 }));

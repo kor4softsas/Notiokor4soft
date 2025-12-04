@@ -4,8 +4,9 @@ import { supabase, isSupabaseConfigured, Meeting, MeetingParticipant, createNoti
 interface MeetingsState {
   meetings: Meeting[];
   isLoading: boolean;
+  _hasFetched: boolean;
   
-  fetchMeetings: () => Promise<void>;
+  fetchMeetings: (force?: boolean) => Promise<void>;
   createMeeting: (meeting: Partial<Meeting>, participantIds: string[]) => Promise<{ error: string | null; meeting?: Meeting }>;
   updateMeeting: (id: string, updates: Partial<Meeting>) => Promise<{ error: string | null }>;
   deleteMeeting: (id: string) => Promise<{ error: string | null }>;
@@ -18,18 +19,24 @@ interface MeetingsState {
 const generateId = () => `meeting-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 const generateRoomName = () => `k4s-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
 
-export const useMeetingsStore = create<MeetingsState>((set) => ({
+export const useMeetingsStore = create<MeetingsState>((set, get) => ({
   meetings: [],
   isLoading: false,
+  _hasFetched: false,
 
-  fetchMeetings: async () => {
-    set({ isLoading: true });
+  fetchMeetings: async (force = false) => {
+    const state = get();
+    // Evitar llamadas duplicadas
+    if (state.isLoading || (state._hasFetched && !force)) {
+      return;
+    }
     
     if (!isSupabaseConfigured || !supabase) {
-      set({ isLoading: false });
+      set({ isLoading: false, _hasFetched: true });
       return;
     }
 
+    set({ isLoading: true });
     try {
       const { data, error } = await supabase
         .from('meetings')
@@ -44,10 +51,10 @@ export const useMeetingsStore = create<MeetingsState>((set) => ({
         .order('scheduled_at', { ascending: true });
 
       if (error) throw error;
-      set({ meetings: data || [], isLoading: false });
+      set({ meetings: data || [], isLoading: false, _hasFetched: true });
     } catch (error) {
       console.error('Error fetching meetings:', error);
-      set({ isLoading: false });
+      set({ isLoading: false, _hasFetched: true });
     }
   },
 
