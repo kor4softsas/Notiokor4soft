@@ -10,10 +10,16 @@ import {
   Sparkles,
   FileText,
   Plus,
+  Video,
+  UserPlus,
 } from 'lucide-react';
 import { useNotesStore } from '../store/notesStore';
-import { Button } from '../components/ui';
-import { Note } from '../lib/supabase';
+import { useMeetingsStore } from '../store/meetingsStore';
+import { useTeamStore } from '../store/teamStore';
+import { useAuthStore } from '../store/authStore';
+import { Button, Modal, ModalBody, ModalFooter } from '../components/ui';
+import { useToast } from '../hooks/useToast';
+import { Note, Meeting } from '../lib/supabase';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isToday } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -40,13 +46,28 @@ const statusColors: Record<string, string> = {
 
 export function Calendar() {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   const { notes, fetchNotes } = useNotesStore();
+  const { meetings, fetchMeetings, createMeeting } = useMeetingsStore();
+  const { members, fetchMembers } = useTeamStore();
+  const toast = useToast();
+  
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [showNewMeeting, setShowNewMeeting] = useState(false);
+  const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
+  const [newMeeting, setNewMeeting] = useState({
+    title: '',
+    description: '',
+    scheduled_at: '',
+    duration_minutes: 60,
+  });
   
   useEffect(() => {
     fetchNotes();
-  }, [fetchNotes]);
+    fetchMeetings();
+    fetchMembers();
+  }, [fetchNotes, fetchMeetings, fetchMembers]);
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -83,12 +104,66 @@ export function Calendar() {
     return grouped;
   }, [notes]);
 
+  // Agrupar reuniones por fecha
+  const meetingsByDate = useMemo(() => {
+    const grouped: Record<string, Meeting[]> = {};
+    meetings.forEach((meeting) => {
+      if (meeting.scheduled_at) {
+        const dateKey = format(new Date(meeting.scheduled_at), 'yyyy-MM-dd');
+        if (!grouped[dateKey]) grouped[dateKey] = [];
+        grouped[dateKey].push(meeting);
+      }
+    });
+    return grouped;
+  }, [meetings]);
+
   const getNotesForDate = (date: Date): Note[] => {
     const dateKey = format(date, 'yyyy-MM-dd');
     return notesByDate[dateKey] || [];
   };
 
+  const getMeetingsForDate = (date: Date): Meeting[] => {
+    const dateKey = format(date, 'yyyy-MM-dd');
+    return meetingsByDate[dateKey] || [];
+  };
+
   const selectedDateNotes = selectedDate ? getNotesForDate(selectedDate) : [];
+  const selectedDateMeetings = selectedDate ? getMeetingsForDate(selectedDate) : [];
+
+  const toggleParticipant = (memberId: string) => {
+    setSelectedParticipants(prev =>
+      prev.includes(memberId)
+        ? prev.filter(id => id !== memberId)
+        : [...prev, memberId]
+    );
+  };
+
+  const openNewMeetingModal = (date?: Date) => {
+    const targetDate = date || selectedDate || new Date();
+    const dateStr = format(targetDate, "yyyy-MM-dd'T'HH:mm");
+    setNewMeeting(prev => ({ ...prev, scheduled_at: dateStr }));
+    setShowNewMeeting(true);
+  };
+
+  const handleCreateMeeting = async () => {
+    if (!newMeeting.title || !newMeeting.scheduled_at) return;
+
+    const { error } = await createMeeting({
+      ...newMeeting,
+      created_by: user?.id,
+    }, selectedParticipants);
+
+    if (error) {
+      toast.show(error, 'error');
+      return;
+    }
+
+    toast.show('Reunión creada correctamente', 'success');
+    setShowNewMeeting(false);
+    setNewMeeting({ title: '', description: '', scheduled_at: '', duration_minutes: 60 });
+    setSelectedParticipants([]);
+    fetchMeetings();
+  };
 
   const goToPreviousMonth = () => setCurrentDate(subMonths(currentDate, 1));
   const goToNextMonth = () => setCurrentDate(addMonths(currentDate, 1));
@@ -134,15 +209,24 @@ export function Calendar() {
             </button>
           </div>
 
-          <Button
-            onClick={() => {
-              const dateParam = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
-              navigate(`/notes/new?date=${dateParam}&type=task`);
-            }}
-            leftIcon={<Plus size={18} />}
-          >
-            Nueva Tarea
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => openNewMeetingModal()}
+              variant="secondary"
+              leftIcon={<Video size={18} />}
+            >
+              Nueva Reunión
+            </Button>
+            <Button
+              onClick={() => {
+                const dateParam = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+                navigate(`/notes/new?date=${dateParam}&type=task`);
+              }}
+              leftIcon={<Plus size={18} />}
+            >
+              Nueva Tarea
+            </Button>
+          </div>
         </div>
 
         {/* Días de la semana */}
@@ -158,6 +242,8 @@ export function Calendar() {
         <div className="grid grid-cols-7 gap-1">
           {allDays.map((day, index) => {
             const dayNotes = getNotesForDate(day);
+            const dayMeetings = getMeetingsForDate(day);
+            const totalItems = dayNotes.length + dayMeetings.length;
             const isCurrentMonth = isSameMonth(day, currentDate);
             const isSelected = selectedDate && isSameDay(day, selectedDate);
             const isTodayDate = isToday(day);
@@ -188,7 +274,22 @@ export function Calendar() {
                 </div>
                 
                 <div className="space-y-1">
-                  {dayNotes.slice(0, 3).map((note) => {
+                  {/* Reuniones */}
+                  {dayMeetings.slice(0, 2).map((meeting) => (
+                    <div
+                      key={meeting.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate('/meetings');
+                      }}
+                      className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs truncate bg-green-500 bg-opacity-20 text-white hover:bg-opacity-30 transition-colors"
+                    >
+                      <Video size={10} />
+                      <span className="truncate">{meeting.title}</span>
+                    </div>
+                  ))}
+                  {/* Notas/Tareas */}
+                  {dayNotes.slice(0, dayMeetings.length > 0 ? 1 : 3).map((note) => {
                     const Icon = typeIcons[note.type] || FileText;
                     return (
                       <div
@@ -208,9 +309,9 @@ export function Calendar() {
                       </div>
                     );
                   })}
-                  {dayNotes.length > 3 && (
+                  {totalItems > 3 && (
                     <div className="text-xs text-gray-500 px-1">
-                      +{dayNotes.length - 3} más
+                      +{totalItems - 3} más
                     </div>
                   )}
                 </div>
@@ -228,74 +329,231 @@ export function Calendar() {
 
         {selectedDate && (
           <>
-            {selectedDateNotes.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <Clock size={32} className="mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No hay tareas para este día</p>
-                <Button
-                  onClick={() => navigate(`/notes/new?date=${format(selectedDate!, 'yyyy-MM-dd')}&type=task`)}
-                  leftIcon={<Plus size={16} />}
-                  size="sm"
-                  className="mt-4 mx-auto"
-                >
-                  Crear tarea
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {selectedDateNotes.map((note) => {
-                  const Icon = typeIcons[note.type] || FileText;
-                  return (
+            {/* Botones de acción rápida */}
+            <div className="flex gap-2 mb-4">
+              <Button
+                onClick={() => openNewMeetingModal(selectedDate)}
+                size="sm"
+                variant="secondary"
+                leftIcon={<Video size={14} />}
+                className="flex-1"
+              >
+                Reunión
+              </Button>
+              <Button
+                onClick={() => navigate(`/notes/new?date=${format(selectedDate!, 'yyyy-MM-dd')}&type=task`)}
+                size="sm"
+                leftIcon={<Plus size={14} />}
+                className="flex-1"
+              >
+                Tarea
+              </Button>
+            </div>
+
+            {/* Reuniones del día */}
+            {selectedDateMeetings.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
+                  <Video size={14} />
+                  Reuniones ({selectedDateMeetings.length})
+                </h4>
+                <div className="space-y-2">
+                  {selectedDateMeetings.map((meeting) => (
                     <div
-                      key={note.id}
-                      onClick={() => navigate(`/notes/${note.id}`)}
-                      className={`
-                        p-3 bg-[#11111b] rounded-lg border-l-4 cursor-pointer
-                        hover:bg-[#1e1e2e] transition-colors
-                        ${statusColors[note.status]}
-                      `}
+                      key={meeting.id}
+                      onClick={() => navigate('/meetings')}
+                      className="p-3 bg-[#11111b] rounded-lg border-l-4 border-l-green-500 cursor-pointer hover:bg-[#1e1e2e] transition-colors"
                     >
                       <div className="flex items-start gap-3">
-                        <div className={`p-2 rounded ${typeColors[note.type]} bg-opacity-20`}>
-                          <Icon size={16} className="text-white" />
+                        <div className="p-2 rounded bg-green-500 bg-opacity-20">
+                          <Video size={16} className="text-green-400" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h4 className="text-white font-medium text-sm truncate">{note.title}</h4>
-                          <p className="text-gray-500 text-xs mt-1 line-clamp-2">{note.content}</p>
-                          <div className="flex items-center gap-2 mt-2">
-                            <span className={`
-                              px-2 py-0.5 rounded text-xs
-                              ${note.status === 'completed' ? 'bg-green-500/20 text-green-400' :
-                                note.status === 'in_progress' ? 'bg-blue-500/20 text-blue-400' :
-                                note.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
-                                'bg-gray-500/20 text-gray-400'}
-                            `}>
-                              {note.status === 'completed' ? 'Completado' :
-                               note.status === 'in_progress' ? 'En progreso' :
-                               note.status === 'pending' ? 'Pendiente' : 'Cancelado'}
-                            </span>
-                            {note.estimated_hours && (
-                              <span className="text-xs text-gray-500 flex items-center gap-1">
-                                <Clock size={12} />
-                                {note.estimated_hours}h
-                              </span>
-                            )}
-                          </div>
-                          {note.creator && (
-                            <p className="text-xs text-gray-600 mt-1">
-                              Creado por: {note.creator.full_name}
-                            </p>
-                          )}
+                          <h4 className="text-white font-medium text-sm truncate">{meeting.title}</h4>
+                          <p className="text-gray-500 text-xs mt-1">
+                            {format(new Date(meeting.scheduled_at), 'HH:mm', { locale: es })} - {meeting.duration_minutes} min
+                          </p>
                         </div>
                       </div>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Tareas del día */}
+            {selectedDateNotes.length === 0 && selectedDateMeetings.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Clock size={32} className="mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No hay eventos para este día</p>
+              </div>
+            ) : selectedDateNotes.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
+                  <CheckSquare size={14} />
+                  Tareas ({selectedDateNotes.length})
+                </h4>
+                <div className="space-y-3">
+                  {selectedDateNotes.map((note) => {
+                    const Icon = typeIcons[note.type] || FileText;
+                    return (
+                      <div
+                        key={note.id}
+                        onClick={() => navigate(`/notes/${note.id}`)}
+                        className={`
+                          p-3 bg-[#11111b] rounded-lg border-l-4 cursor-pointer
+                          hover:bg-[#1e1e2e] transition-colors
+                          ${statusColors[note.status]}
+                        `}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`p-2 rounded ${typeColors[note.type]} bg-opacity-20`}>
+                            <Icon size={16} className="text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-white font-medium text-sm truncate">{note.title}</h4>
+                            <p className="text-gray-500 text-xs mt-1 line-clamp-2">{note.content}</p>
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className={`
+                                px-2 py-0.5 rounded text-xs
+                                ${note.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                                  note.status === 'in_progress' ? 'bg-blue-500/20 text-blue-400' :
+                                  note.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
+                                  'bg-gray-500/20 text-gray-400'}
+                              `}>
+                                {note.status === 'completed' ? 'Completado' :
+                                 note.status === 'in_progress' ? 'En progreso' :
+                                 note.status === 'pending' ? 'Pendiente' : 'Cancelado'}
+                              </span>
+                              {note.estimated_hours && (
+                                <span className="text-xs text-gray-500 flex items-center gap-1">
+                                  <Clock size={12} />
+                                  {note.estimated_hours}h
+                                </span>
+                              )}
+                            </div>
+                            {note.creator && (
+                              <p className="text-xs text-gray-600 mt-1">
+                                Creado por: {note.creator.full_name}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </>
         )}
       </div>
+
+      {/* Modal Nueva Reunión */}
+      <Modal
+        isOpen={showNewMeeting}
+        onClose={() => setShowNewMeeting(false)}
+        title="Nueva Reunión"
+        size="lg"
+      >
+        <ModalBody>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Título *</label>
+              <input
+                type="text"
+                id="meeting-title"
+                name="meeting-title"
+                value={newMeeting.title}
+                onChange={(e) => setNewMeeting({ ...newMeeting, title: e.target.value })}
+                placeholder="Ej: Daily Standup"
+                className="w-full bg-[#11111b] border border-gray-700 rounded-lg py-3 px-4 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Descripción</label>
+              <textarea
+                id="meeting-description"
+                name="meeting-description"
+                value={newMeeting.description}
+                onChange={(e) => setNewMeeting({ ...newMeeting, description: e.target.value })}
+                placeholder="Detalles de la reunión..."
+                rows={2}
+                className="w-full bg-[#11111b] border border-gray-700 rounded-lg py-3 px-4 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Fecha y hora *</label>
+                <input
+                  type="datetime-local"
+                  id="meeting-datetime"
+                  name="meeting-datetime"
+                  value={newMeeting.scheduled_at}
+                  onChange={(e) => setNewMeeting({ ...newMeeting, scheduled_at: e.target.value })}
+                  className="w-full bg-[#11111b] border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Duración (min)</label>
+                <select
+                  id="meeting-duration"
+                  name="meeting-duration"
+                  value={newMeeting.duration_minutes}
+                  onChange={(e) => setNewMeeting({ ...newMeeting, duration_minutes: parseInt(e.target.value) })}
+                  className="w-full bg-[#11111b] border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value={15}>15 minutos</option>
+                  <option value={30}>30 minutos</option>
+                  <option value={45}>45 minutos</option>
+                  <option value={60}>1 hora</option>
+                  <option value={90}>1.5 horas</option>
+                  <option value={120}>2 horas</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-400 mb-2 flex items-center gap-2">
+                <UserPlus size={16} />
+                Invitar participantes
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {members.filter(m => m.id !== user?.id).map((member) => (
+                  <button
+                    key={member.id}
+                    type="button"
+                    onClick={() => toggleParticipant(member.id)}
+                    className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
+                      selectedParticipants.includes(member.id)
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-[#11111b] text-gray-400 hover:bg-[#1e1e2e] hover:text-white'
+                    }`}
+                  >
+                    {member.full_name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </ModalBody>
+        <ModalFooter>
+          <Button
+            variant="ghost"
+            onClick={() => setShowNewMeeting(false)}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleCreateMeeting}
+            disabled={!newMeeting.title || !newMeeting.scheduled_at}
+          >
+            Crear Reunión
+          </Button>
+        </ModalFooter>
+      </Modal>
     </div>
   );
 }
