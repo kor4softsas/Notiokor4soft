@@ -20,6 +20,7 @@ import { useExpensesStore } from '../store/expensesStore';
 import { useAuthStore } from '../store/authStore';
 import { Expense } from '../lib/supabase';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { Button, Spinner, Modal, ModalBody, ModalFooter, Card } from '../components/ui';
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -191,13 +192,12 @@ export function Expenses() {
           </h1>
           <p className="text-gray-400 mt-1">Registra y gestiona los gastos de la empresa</p>
         </div>
-        <button
+        <Button
           onClick={() => handleOpenModal()}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          leftIcon={<Plus size={20} />}
         >
-          <Plus size={20} />
           Nuevo Gasto
-        </button>
+        </Button>
       </div>
 
       {/* Stats */}
@@ -246,6 +246,8 @@ export function Expenses() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
           <input
             type="text"
+            id="search-expenses"
+            name="search-expenses"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Buscar gastos..."
@@ -255,6 +257,8 @@ export function Expenses() {
 
         {/* Category filter */}
         <select
+          id="filter-category"
+          name="filter-category"
           value={categoryFilter || ''}
           onChange={(e) => setCategoryFilter(e.target.value || null)}
           className="bg-[#181825] border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
@@ -267,6 +271,8 @@ export function Expenses() {
 
         {/* Status filter */}
         <select
+          id="filter-status"
+          name="filter-status"
           value={statusFilter || ''}
           onChange={(e) => setStatusFilter(e.target.value || null)}
           className="bg-[#181825] border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
@@ -280,6 +286,8 @@ export function Expenses() {
 
         {/* Date filter */}
         <select
+          id="filter-date"
+          name="filter-date"
           value={dateFilter}
           onChange={(e) => setDateFilter(e.target.value as any)}
           className="bg-[#181825] border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
@@ -289,9 +297,9 @@ export function Expenses() {
         </select>
       </div>
 
-      {/* Expenses Table */}
-      <div className="bg-[#181825] rounded-xl border border-gray-700">
-        <div className="overflow-x-auto overflow-y-visible">
+      {/* Expenses Table - Desktop */}
+      <div className="hidden lg:block bg-[#181825] rounded-xl border border-gray-700">
+        <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-700">
@@ -308,7 +316,7 @@ export function Expenses() {
               {isLoading ? (
                 <tr>
                   <td colSpan={7} className="p-8 text-center">
-                    <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto" />
+                    <Spinner size="lg" className="mx-auto" />
                   </td>
                 </tr>
               ) : filteredExpenses.length === 0 ? (
@@ -383,6 +391,82 @@ export function Expenses() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Expenses Cards - Mobile */}
+      <div className="lg:hidden space-y-4">
+        {isLoading ? (
+          <div className="flex justify-center py-8">
+            <Spinner size="lg" />
+          </div>
+        ) : filteredExpenses.length === 0 ? (
+          <Card className="p-8 text-center text-gray-500">
+            No hay gastos registrados
+          </Card>
+        ) : (
+          filteredExpenses.map(expense => {
+            const status = statusConfig[expense.status];
+            const StatusIcon = status.icon;
+            
+            return (
+              <Card key={expense.id} className="p-4" hover>
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <h3 className="text-white font-medium">{expense.description}</h3>
+                    {expense.vendor && (
+                      <p className="text-gray-500 text-sm">{expense.vendor}</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setActiveMenu(activeMenu?.id === expense.id ? null : { id: expense.id, x: rect.right, y: rect.top });
+                    }}
+                    className="p-2 rounded-lg hover:bg-[#11111b] text-gray-400"
+                  >
+                    <MoreVertical size={16} />
+                  </button>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400 text-sm">Monto</span>
+                    <span className="text-white font-semibold">
+                      {formatCurrency(expense.amount, expense.currency)}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400 text-sm">Estado</span>
+                    <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium ${status.color}`}>
+                      <StatusIcon size={12} />
+                      {status.label}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400 text-sm">Fecha</span>
+                    <span className="text-gray-300 text-sm">
+                      {format(parseISO(expense.expense_date), "d MMM yyyy", { locale: es })}
+                    </span>
+                  </div>
+                  
+                  {expense.category && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400 text-sm">Categoría</span>
+                      <span 
+                        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-sm"
+                        style={{ backgroundColor: `${expense.category.color}20`, color: expense.category.color }}
+                      >
+                        {expense.category.icon} {expense.category.name}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            );
+          })
+        )}
       </div>
 
       {/* Menú de acciones flotante */}
@@ -468,27 +552,21 @@ export function Expenses() {
       )}
 
       {/* Modal de crear/editar */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#181825] rounded-xl border border-gray-700 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-700 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-white">
-                {editingExpense ? 'Editar Gasto' : 'Nuevo Gasto'}
-              </h2>
-              <button
-                onClick={() => { setShowModal(false); resetForm(); }}
-                className="p-2 rounded-lg hover:bg-[#1e1e2e] text-gray-400"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+      <Modal
+        isOpen={showModal}
+        onClose={() => { setShowModal(false); resetForm(); }}
+        title={editingExpense ? 'Editar Gasto' : 'Nuevo Gasto'}
+        size="lg"
+      >
+        <form onSubmit={handleSubmit}>
+          <ModalBody className="space-y-4">
               {/* Descripción */}
               <div>
                 <label className="block text-sm text-gray-400 mb-2">Descripción *</label>
                 <input
                   type="text"
+                  id="expense-description"
+                  name="expense-description"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="w-full bg-[#11111b] border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"
@@ -505,6 +583,8 @@ export function Expenses() {
                     <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
                     <input
                       type="text"
+                      id="expense-amount"
+                      name="expense-amount"
                       value={formData.amount}
                       onChange={(e) => {
                         // Solo permitir números y formatear con puntos
@@ -521,6 +601,8 @@ export function Expenses() {
                 <div>
                   <label className="block text-sm text-gray-400 mb-2">Moneda</label>
                   <select
+                    id="expense-currency"
+                    name="expense-currency"
                     value={formData.currency}
                     onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
                     className="w-full bg-[#11111b] border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"
@@ -593,6 +675,8 @@ export function Expenses() {
                   <label className="block text-sm text-gray-400 mb-2">Proveedor</label>
                   <input
                     type="text"
+                    id="expense-vendor"
+                    name="expense-vendor"
                     value={formData.vendor}
                     onChange={(e) => setFormData({ ...formData, vendor: e.target.value })}
                     className="w-full bg-[#11111b] border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"
@@ -603,6 +687,8 @@ export function Expenses() {
                   <label className="block text-sm text-gray-400 mb-2">N° Factura</label>
                   <input
                     type="text"
+                    id="expense-invoice"
+                    name="expense-invoice"
                     value={formData.invoice_number}
                     onChange={(e) => setFormData({ ...formData, invoice_number: e.target.value })}
                     className="w-full bg-[#11111b] border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"
@@ -617,6 +703,8 @@ export function Expenses() {
                   <label className="block text-sm text-gray-400 mb-2">Fecha *</label>
                   <input
                     type="date"
+                    id="expense-date"
+                    name="expense-date"
                     value={formData.expense_date}
                     onChange={(e) => setFormData({ ...formData, expense_date: e.target.value })}
                     className="w-full bg-[#11111b] border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"
@@ -626,6 +714,8 @@ export function Expenses() {
                 <div>
                   <label className="block text-sm text-gray-400 mb-2">Método de pago</label>
                   <select
+                    id="expense-payment-method"
+                    name="expense-payment-method"
                     value={formData.payment_method}
                     onChange={(e) => setFormData({ ...formData, payment_method: e.target.value as any })}
                     className="w-full bg-[#11111b] border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"
@@ -649,26 +739,21 @@ export function Expenses() {
                 />
               </div>
 
-              {/* Botones */}
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => { setShowModal(false); resetForm(); }}
-                  className="flex-1 px-4 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  {editingExpense ? 'Guardar Cambios' : 'Registrar Gasto'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => { setShowModal(false); resetForm(); }}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit">
+              {editingExpense ? 'Guardar Cambios' : 'Registrar Gasto'}
+            </Button>
+          </ModalFooter>
+        </form>
+      </Modal>
 
       {/* Modal de detalles del gasto */}
       {viewingExpense && (

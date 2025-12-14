@@ -5,18 +5,18 @@ import {
   Calendar,
   Clock,
   Users,
-  X,
   Trash2,
   UserPlus,
   Phone,
   PhoneOff,
   ExternalLink,
-  AlertCircle,
 } from 'lucide-react';
 import { useMeetingsStore } from '../store/meetingsStore';
 import { useTeamStore } from '../store/teamStore';
 import { useAuthStore } from '../store/authStore';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { Button, Spinner, Modal, ModalBody, ModalFooter } from '../components/ui';
+import { useToast } from '../hooks/useToast';
 import { Meeting } from '../lib/supabase';
 import { format, isPast, isToday, addMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -39,7 +39,7 @@ export function Meetings() {
     scheduled_at: '',
     duration_minutes: 60,
   });
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     fetchMeetings();
@@ -68,8 +68,7 @@ export function Meetings() {
     }, selectedParticipants);
 
     if (error) {
-      setErrorMessage(error);
-      setTimeout(() => setErrorMessage(null), 5000);
+      toast.show(error, 'error');
       return;
     }
 
@@ -189,13 +188,12 @@ export function Meetings() {
           </h1>
           <p className="text-gray-400 mt-1">Programa y gestiona videollamadas con tu equipo</p>
         </div>
-        <button
+        <Button
           onClick={() => setShowNewMeeting(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          leftIcon={<Plus size={18} />}
         >
-          <Plus size={18} />
           Nueva Reunión
-        </button>
+        </Button>
       </div>
 
       {/* Reuniones de hoy */}
@@ -229,7 +227,7 @@ export function Meetings() {
         </h2>
         {isLoading ? (
           <div className="flex justify-center py-8">
-            <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+            <Spinner size="lg" />
           </div>
         ) : upcomingMeetings.length === 0 ? (
           <div className="text-center py-12 bg-[#181825] rounded-xl border border-gray-700">
@@ -283,23 +281,14 @@ export function Meetings() {
       )}
 
       {/* Modal Nueva Reunión */}
-      {showNewMeeting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="bg-[#181825] rounded-xl border border-gray-700 w-full max-w-lg overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-gray-700">
-              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                <Video size={20} />
-                Nueva Reunión
-              </h3>
-              <button
-                onClick={() => setShowNewMeeting(false)}
-                className="p-1 hover:bg-[#1e1e2e] rounded-lg text-gray-400 hover:text-white"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-4">
+      <Modal
+        isOpen={showNewMeeting}
+        onClose={() => setShowNewMeeting(false)}
+        title="Nueva Reunión"
+        size="lg"
+      >
+        <ModalBody>
+          <div className="space-y-4">
               <div>
                 <label className="block text-sm text-gray-400 mb-2">Título *</label>
                 <input
@@ -370,26 +359,23 @@ export function Meetings() {
                   ))}
                 </div>
               </div>
-            </div>
-
-            <div className="flex justify-end gap-3 p-4 border-t border-gray-700">
-              <button
-                onClick={() => setShowNewMeeting(false)}
-                className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleCreateMeeting}
-                disabled={!newMeeting.title || !newMeeting.scheduled_at}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50"
-              >
-                Crear Reunión
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        </ModalBody>
+        <ModalFooter>
+          <Button
+            variant="ghost"
+            onClick={() => setShowNewMeeting(false)}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleCreateMeeting}
+            disabled={!newMeeting.title || !newMeeting.scheduled_at}
+          >
+            Crear Reunión
+          </Button>
+        </ModalFooter>
+      </Modal>
 
       {/* Delete Confirmation */}
       <ConfirmModal
@@ -402,19 +388,6 @@ export function Meetings() {
         variant="danger"
       />
 
-      {/* Toast de error */}
-      {errorMessage && (
-        <div className="fixed bottom-4 right-4 bg-red-500/90 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50">
-          <AlertCircle size={20} />
-          <span>{errorMessage}</span>
-          <button 
-            onClick={() => setErrorMessage(null)}
-            className="ml-2 hover:bg-red-600 rounded p-1"
-          >
-            ✕
-          </button>
-        </div>
-      )}
     </div>
   );
 }

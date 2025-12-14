@@ -61,7 +61,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="p-4 border-b border-gray-700">
         <div className="flex items-center gap-3">
-          <img src="/Logo.svg" alt="Kor4Soft" className="h-8" />
+          <img src="/Logo.svg" alt="Kor4Soft" className="h-10" />
           <div>
             <h1 className="text-lg font-bold text-blue-400">Kor4Soft Notes</h1>
             <p className="text-xs text-gray-500">Sistema de seguimiento</p>
@@ -104,6 +104,7 @@ export function Sidebar() {
             <NavLink
               key={item.to}
               to={item.to}
+              title={item.label}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-2.5 rounded-lg mb-1 transition-colors ${
                   isActive

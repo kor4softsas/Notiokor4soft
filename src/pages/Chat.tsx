@@ -421,6 +421,8 @@ export function Chat() {
                   <span className="px-3 text-gray-500">#</span>
                   <input
                     type="text"
+                    id="new-channel-name"
+                    name="new-channel-name"
                     value={newChannelName}
                     onChange={(e) => setNewChannelName(e.target.value)}
                     placeholder="nuevo-canal"
@@ -435,6 +437,8 @@ export function Chat() {
                 </label>
                 <input
                   type="text"
+                  id="new-channel-desc"
+                  name="new-channel-desc"
                   value={newChannelDesc}
                   onChange={(e) => setNewChannelDesc(e.target.value)}
                   placeholder="¿De qué trata este canal?"

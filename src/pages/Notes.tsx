@@ -12,11 +12,12 @@ import {
   Edit,
   Copy,
   ExternalLink,
-  AlertCircle,
 } from 'lucide-react';
 import { useNotesStore } from '../store/notesStore';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { ContextMenu, useContextMenu } from '../components/ContextMenu';
+import { Button, Spinner } from '../components/ui';
+import { useToast } from '../hooks/useToast';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -46,8 +47,8 @@ export function Notes() {
     noteId: null,
     noteTitle: '',
   });
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const { contextMenu, handleContextMenu, closeContextMenu } = useContextMenu();
+  const toast = useToast();
 
   useEffect(() => {
     fetchNotes();
@@ -67,8 +68,7 @@ export function Notes() {
     if (deleteModal.noteId) {
       const { error } = await deleteNote(deleteModal.noteId);
       if (error) {
-        setErrorMessage(error);
-        setTimeout(() => setErrorMessage(null), 4000);
+        toast.show(error, 'error');
       }
     }
     setDeleteModal({ isOpen: false, noteId: null, noteTitle: '' });
@@ -94,13 +94,12 @@ export function Notes() {
           <h1 className="text-2xl font-bold text-white">Notas</h1>
           <p className="text-gray-400 mt-1">Gestiona todas tus notas y registros</p>
         </div>
-        <button
+        <Button
           onClick={() => navigate('/notes/new')}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          leftIcon={<Plus size={20} />}
         >
-          <Plus size={20} />
           Nueva Nota
-        </button>
+        </Button>
       </div>
 
       {/* Filters */}
@@ -110,6 +109,8 @@ export function Notes() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
           <input
             type="text"
+            id="search-notes"
+            name="search-notes"
             value={searchTerm}
             onChange={(e) => handleSearch(e.target.value)}
             placeholder="Buscar notas..."
@@ -139,7 +140,7 @@ export function Notes() {
       {/* Notes Grid */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
-          <div className="w-10 h-10 border-2 border-blue-500/30 border-t-primary-500 rounded-full animate-spin" />
+          <Spinner size="lg" />
         </div>
       ) : mainNotes.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -222,13 +223,12 @@ export function Notes() {
           <FileText size={64} className="mx-auto text-gray-600 mb-4" />
           <h3 className="text-xl font-medium text-white mb-2">No hay notas</h3>
           <p className="text-gray-400 mb-6">Crea tu primera nota para empezar a documentar</p>
-          <button
+          <Button
             onClick={() => navigate('/notes/new')}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            leftIcon={<Plus size={20} />}
           >
-            <Plus size={20} />
             Crear Nota
-          </button>
+          </Button>
         </div>
       )}
 
@@ -276,19 +276,6 @@ export function Notes() {
         />
       )}
 
-      {/* Toast de error */}
-      {errorMessage && (
-        <div className="fixed bottom-4 right-4 bg-red-500/90 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50">
-          <AlertCircle size={20} />
-          <span>{errorMessage}</span>
-          <button 
-            onClick={() => setErrorMessage(null)}
-            className="ml-2 hover:bg-red-600 rounded p-1"
-          >
-            ✕
-          </button>
-        </div>
-      )}
     </div>
   );
 }

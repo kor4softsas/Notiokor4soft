@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useTeamStore } from '../store/teamStore';
 import { useNotesStore } from '../store/notesStore';
+import { Spinner, Card } from '../components/ui';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -54,7 +55,7 @@ export function Team() {
   if (isLoading) {
     return (
       <div className="p-6 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+        <Spinner size="lg" />
       </div>
     );
   }
@@ -79,9 +80,9 @@ export function Team() {
           const LastIcon = stats.lastNote ? typeIcons[stats.lastNote.type] || FileText : null;
 
           return (
-            <div
+            <Card
               key={member.id}
-              className="bg-[#181825] rounded-xl border border-gray-700 overflow-hidden hover:border-gray-600 transition-colors"
+              hover
             >
               {/* Header del card */}
               <div className="p-5 border-b border-gray-700">
@@ -158,7 +159,7 @@ export function Team() {
                   {member.role === 'admin' ? 'Administrador' : 'Desarrollador'}
                 </span>
               </div>
-            </div>
+            </Card>
           );
         })}
       </div>

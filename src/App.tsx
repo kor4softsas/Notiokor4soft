@@ -16,6 +16,8 @@ import { Kanban } from './pages/Kanban';
 import { Expenses } from './pages/Expenses';
 import { GlobalSearch } from './components/GlobalSearch';
 import { useAuthStore } from './store/authStore';
+import { Toast } from './components/ui';
+import { useToast } from './hooks/useToast';
 import './index.css';
 
 // Protected Route wrapper
@@ -45,12 +47,15 @@ function HomeRedirect() {
 
 function App() {
   const { checkAuth } = useAuthStore();
+  const { message, type, hide } = useToast();
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
 
   return (
+    <>
+      {message && <Toast message={message} type={type} onClose={hide} />}
     <BrowserRouter
       future={{
         v7_startTransition: true,
@@ -84,6 +89,7 @@ function App() {
         <Route path="*" element={<HomeRedirect />} />
       </Routes>
     </BrowserRouter>
+    </>
   );
 }
 

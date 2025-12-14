@@ -12,6 +12,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { useNotesStore } from '../store/notesStore';
+import { Button } from '../components/ui';
 import { Note } from '../lib/supabase';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isToday } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -133,16 +134,15 @@ export function Calendar() {
             </button>
           </div>
 
-          <button
+          <Button
             onClick={() => {
               const dateParam = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
               navigate(`/notes/new?date=${dateParam}&type=task`);
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            leftIcon={<Plus size={18} />}
           >
-            <Plus size={18} />
             Nueva Tarea
-          </button>
+          </Button>
         </div>
 
         {/* Días de la semana */}
@@ -232,13 +232,14 @@ export function Calendar() {
               <div className="text-center py-8 text-gray-500">
                 <Clock size={32} className="mx-auto mb-2 opacity-50" />
                 <p className="text-sm">No hay tareas para este día</p>
-                <button
+                <Button
                   onClick={() => navigate(`/notes/new?date=${format(selectedDate!, 'yyyy-MM-dd')}&type=task`)}
-                  className="mt-4 flex items-center gap-2 mx-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+                  leftIcon={<Plus size={16} />}
+                  size="sm"
+                  className="mt-4 mx-auto"
                 >
-                  <Plus size={16} />
                   Crear tarea
-                </button>
+                </Button>
               </div>
             ) : (
               <div className="space-y-3">

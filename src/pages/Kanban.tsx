@@ -20,6 +20,8 @@ import {
 import { useNotesStore } from '../store/notesStore';
 import { useSprintStore } from '../store/sprintStore';
 import { useTeamStore } from '../store/teamStore';
+import { Button } from '../components/ui';
+import { useToast } from '../hooks/useToast';
 import { Note } from '../lib/supabase';
 import { format, parseISO, isPast, isToday } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -90,14 +92,12 @@ export function Kanban() {
   const [draggedNote, setDraggedNote] = useState<Note | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<KanbanColumn | null>(null);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const toast = useToast();
 
-  // Manejar eliminación con mensaje de error
   const handleDeleteNote = async (id: string) => {
     const { error } = await deleteNote(id);
     if (error) {
-      setErrorMessage(error);
-      setTimeout(() => setErrorMessage(null), 4000);
+      toast.show(error, 'error');
     }
     setActiveMenu(null);
   };
@@ -206,13 +206,12 @@ export function Kanban() {
             <h1 className="text-2xl font-bold text-white">Tablero Kanban</h1>
             <p className="text-gray-400 mt-1">Arrastra las tareas para cambiar su estado</p>
           </div>
-          <button
+          <Button
             onClick={() => navigate('/notes/new?type=task')}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            leftIcon={<Plus size={20} />}
           >
-            <Plus size={20} />
             Nueva Tarea
-          </button>
+          </Button>
         </div>
 
         {/* Filtros */}
@@ -496,19 +495,6 @@ export function Kanban() {
         </div>
       </div>
 
-      {/* Toast de error */}
-      {errorMessage && (
-        <div className="fixed bottom-4 right-4 bg-red-500/90 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50">
-          <AlertCircle size={20} />
-          <span>{errorMessage}</span>
-          <button 
-            onClick={() => setErrorMessage(null)}
-            className="ml-2 hover:bg-red-600 rounded p-1"
-          >
-            ✕
-          </button>
-        </div>
-      )}
     </div>
   );
 }

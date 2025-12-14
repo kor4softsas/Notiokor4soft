@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   FileText, 
@@ -25,6 +25,8 @@ import { useAuthStore } from '../store/authStore';
 import { useMeetingsStore } from '../store/meetingsStore';
 import { useSprintStore } from '../store/sprintStore';
 import { ContextMenu, useContextMenu } from '../components/ContextMenu';
+import { Spinner } from '../components/ui';
+import { useToast } from '../hooks/useToast';
 import { format, isToday, isTomorrow, parseISO, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -43,7 +45,7 @@ export function Dashboard() {
   const { meetings, fetchMeetings } = useMeetingsStore();
   const { currentSprint, fetchSprints } = useSprintStore();
   const { contextMenu, handleContextMenu, closeContextMenu } = useContextMenu();
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     fetchNotes();
@@ -51,12 +53,10 @@ export function Dashboard() {
     fetchSprints();
   }, [fetchNotes, fetchMeetings, fetchSprints]);
 
-  // Manejar eliminación con mensaje de error
   const handleDeleteNote = async (id: string) => {
     const { error } = await deleteNote(id);
     if (error) {
-      setErrorMessage(error);
-      setTimeout(() => setErrorMessage(null), 4000);
+      toast.show(error, 'error');
     }
   };
 
@@ -334,7 +334,7 @@ export function Dashboard() {
           <div className="p-4">
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
-                <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+                <Spinner size="lg" />
               </div>
             ) : recentActivity.length > 0 ? (
               <div className="space-y-3">
@@ -479,19 +479,6 @@ export function Dashboard() {
         />
       )}
 
-      {/* Toast de error */}
-      {errorMessage && (
-        <div className="fixed bottom-4 right-4 bg-red-500/90 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-in slide-in-from-bottom-5 z-50">
-          <AlertCircle size={20} />
-          <span>{errorMessage}</span>
-          <button 
-            onClick={() => setErrorMessage(null)}
-            className="ml-2 hover:bg-red-600 rounded p-1"
-          >
-            ✕
-          </button>
-        </div>
-      )}
     </div>
   );
 }

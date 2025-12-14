@@ -5,24 +5,20 @@ import {
   Mail,
   Lock,
   Camera,
-  Save,
   Eye,
   EyeOff,
-  CheckCircle,
-  AlertCircle,
-  Download,
-  RefreshCw,
-  Sparkles,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { Button, Card, CardBody } from '../components/ui';
+import { useToast } from '../hooks/useToast';
 
 export function Settings() {
   const { user, setUser } = useAuthStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const toast = useToast();
   
   const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   
@@ -38,112 +34,6 @@ export function Settings() {
     confirm_password: '',
   });
 
-  // Estado para actualizaciones
-  const [updateState, setUpdateState] = useState<{
-    checking: boolean;
-    downloading: boolean;
-    available: boolean;
-    version: string | null;
-    error: string | null;
-  }>({
-    checking: false,
-    downloading: false,
-    available: false,
-    version: null,
-    error: null,
-  });
-
-  const currentVersion = '0.7.0';
-  const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-
-  const checkForUpdates = async () => {
-    if (!isTauri) {
-      setUpdateState(prev => ({ ...prev, error: 'Las actualizaciones solo funcionan en la app de escritorio' }));
-      return;
-    }
-
-    setUpdateState(prev => ({ ...prev, checking: true, error: null }));
-    
-    try {
-      const { check } = await import('@tauri-apps/plugin-updater');
-      const update = await check();
-      
-      if (update) {
-        setUpdateState(prev => ({
-          ...prev,
-          checking: false,
-          available: true,
-          version: update.version,
-        }));
-      } else {
-        setUpdateState(prev => ({
-          ...prev,
-          checking: false,
-          available: false,
-          version: null,
-        }));
-        showMessage('success', 'Ya tienes la última versión');
-      }
-    } catch (error: any) {
-      console.error('Error checking updates:', error);
-      setUpdateState(prev => ({
-        ...prev,
-        checking: false,
-        error: error.message || 'Error al verificar actualizaciones',
-      }));
-    }
-  };
-
-  const downloadAndInstall = async () => {
-    if (!isTauri) return;
-
-    setUpdateState(prev => ({ ...prev, downloading: true, error: null }));
-    
-    try {
-      const { check } = await import('@tauri-apps/plugin-updater');
-      const { relaunch } = await import('@tauri-apps/plugin-process');
-      const update = await check();
-      
-      if (update) {
-        showMessage('success', 'Descargando actualización...');
-        
-        let downloaded = 0;
-        let contentLength = 0;
-        
-        await update.downloadAndInstall((event) => {
-          switch (event.event) {
-            case 'Started':
-              contentLength = event.data.contentLength || 0;
-              console.log(`Iniciando descarga: ${contentLength} bytes`);
-              break;
-            case 'Progress':
-              downloaded += event.data.chunkLength;
-              console.log(`Descargado: ${downloaded}/${contentLength}`);
-              break;
-            case 'Finished':
-              console.log('Descarga completada');
-              break;
-          }
-        });
-        
-        showMessage('success', 'Actualización instalada. Reiniciando...');
-        await relaunch();
-      }
-    } catch (error: any) {
-      console.error('Error downloading update:', error);
-      const errorMsg = error.message || error.toString() || 'Error desconocido';
-      setUpdateState(prev => ({
-        ...prev,
-        downloading: false,
-        error: `Error: ${errorMsg}`,
-      }));
-    }
-  };
-
-  const showMessage = (type: 'success' | 'error', text: string) => {
-    setMessage({ type, text });
-    setTimeout(() => setMessage(null), 5000);
-  };
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,9 +41,8 @@ export function Settings() {
 
     try {
       if (!isSupabaseConfigured || !supabase) {
-        // Modo demo - actualizar localmente
         setUser({ ...user!, full_name: profileData.full_name });
-        showMessage('success', 'Perfil actualizado correctamente');
+        toast.show('Perfil actualizado correctamente', 'success');
         setIsLoading(false);
         return;
       }
@@ -179,9 +68,9 @@ export function Settings() {
       }
 
       setUser({ ...user!, full_name: profileData.full_name, avatar_url: profileData.avatar_url });
-      showMessage('success', 'Perfil actualizado correctamente');
+      toast.show('Perfil actualizado correctamente', 'success');
     } catch (error: any) {
-      showMessage('error', error.message || 'Error al actualizar perfil');
+      toast.show(error.message || 'Error al actualizar perfil', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -191,12 +80,12 @@ export function Settings() {
     e.preventDefault();
     
     if (passwordData.new_password !== passwordData.confirm_password) {
-      showMessage('error', 'Las contraseñas no coinciden');
+      toast.show('Las contraseñas no coinciden', 'error');
       return;
     }
 
     if (passwordData.new_password.length < 6) {
-      showMessage('error', 'La contraseña debe tener al menos 6 caracteres');
+      toast.show('La contraseña debe tener al menos 6 caracteres', 'error');
       return;
     }
 
@@ -204,7 +93,7 @@ export function Settings() {
 
     try {
       if (!isSupabaseConfigured || !supabase) {
-        showMessage('success', 'Contraseña actualizada (modo demo)');
+        toast.show('Contraseña actualizada (modo demo)', 'success');
         setPasswordData({ current_password: '', new_password: '', confirm_password: '' });
         setIsLoading(false);
         return;
@@ -216,10 +105,10 @@ export function Settings() {
 
       if (error) throw error;
 
-      showMessage('success', 'Contraseña actualizada correctamente');
+      toast.show('Contraseña actualizada correctamente', 'success');
       setPasswordData({ current_password: '', new_password: '', confirm_password: '' });
     } catch (error: any) {
-      showMessage('error', error.message || 'Error al actualizar contraseña');
+      toast.show(error.message || 'Error al actualizar contraseña', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -235,13 +124,12 @@ export function Settings() {
 
     // Validar tipo de archivo
     if (!file.type.startsWith('image/')) {
-      showMessage('error', 'Solo se permiten imágenes');
+      toast.show('Solo se permiten imágenes', 'error');
       return;
     }
 
-    // Validar tamaño (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
-      showMessage('error', 'La imagen no debe superar 2MB');
+      toast.show('La imagen no debe superar 2MB', 'error');
       return;
     }
 
@@ -252,7 +140,7 @@ export function Settings() {
         // Modo demo - usar URL local
         const url = URL.createObjectURL(file);
         setProfileData({ ...profileData, avatar_url: url });
-        showMessage('success', 'Imagen actualizada (modo demo)');
+        toast.show('Imagen actualizada (modo demo)', 'success');
         setIsLoading(false);
         return;
       }
@@ -272,9 +160,9 @@ export function Settings() {
         .getPublicUrl(fileName);
 
       setProfileData({ ...profileData, avatar_url: urlData.publicUrl });
-      showMessage('success', 'Imagen subida correctamente. Guarda los cambios.');
+      toast.show('Imagen subida correctamente. Guarda los cambios.', 'success');
     } catch (error: any) {
-      showMessage('error', error.message || 'Error al subir imagen');
+      toast.show(error.message || 'Error al subir imagen', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -291,20 +179,9 @@ export function Settings() {
         <p className="text-gray-400 mt-1">Administra tu perfil y preferencias</p>
       </div>
 
-      {/* Message */}
-      {message && (
-        <div className={`flex items-center gap-3 p-4 mb-6 rounded-lg ${
-          message.type === 'success' 
-            ? 'bg-green-500/10 border border-green-500/20 text-green-400' 
-            : 'bg-red-500/10 border border-red-500/20 text-red-400'
-        }`}>
-          {message.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
-          {message.text}
-        </div>
-      )}
-
       {/* Profile Section */}
-      <div className="bg-[#181825] rounded-xl border border-gray-700 p-6 mb-6">
+      <Card className="mb-6">
+        <CardBody>
         <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
           <User size={20} />
           Mi Perfil
@@ -363,6 +240,9 @@ export function Settings() {
                 onChange={(e) => setProfileData({ ...profileData, full_name: e.target.value })}
                 className="w-full bg-[#11111b] border border-gray-700 rounded-lg py-3 pl-11 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
                 placeholder="Tu nombre"
+                autoComplete="name"
+                id="full-name"
+                name="full-name"
               />
             </div>
           </div>
@@ -378,27 +258,26 @@ export function Settings() {
                 onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
                 className="w-full bg-[#11111b] border border-gray-700 rounded-lg py-3 pl-11 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
                 placeholder="tu@email.com"
+                autoComplete="email"
+                id="email"
+                name="email"
               />
             </div>
           </div>
 
-          <button
+          <Button
             type="submit"
-            disabled={isLoading}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50"
+            isLoading={isLoading}
           >
-            {isLoading ? (
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <Save size={20} />
-            )}
             Guardar cambios
-          </button>
+          </Button>
         </form>
-      </div>
+        </CardBody>
+      </Card>
 
       {/* Password Section */}
-      <div className="bg-[#181825] rounded-xl border border-gray-700 p-6">
+      <Card className="mb-6">
+        <CardBody>
         <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
           <Lock size={20} />
           Cambiar Contraseña
@@ -416,6 +295,9 @@ export function Settings() {
                 onChange={(e) => setPasswordData({ ...passwordData, current_password: e.target.value })}
                 className="w-full bg-[#11111b] border border-gray-700 rounded-lg py-3 pl-11 pr-12 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
                 placeholder="••••••••"
+                autoComplete="current-password"
+                id="current-password"
+                name="current-password"
               />
               <button
                 type="button"
@@ -438,6 +320,9 @@ export function Settings() {
                 onChange={(e) => setPasswordData({ ...passwordData, new_password: e.target.value })}
                 className="w-full bg-[#11111b] border border-gray-700 rounded-lg py-3 pl-11 pr-12 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
                 placeholder="••••••••"
+                autoComplete="new-password"
+                id="new-password"
+                name="new-password"
               />
               <button
                 type="button"
@@ -460,103 +345,23 @@ export function Settings() {
                 onChange={(e) => setPasswordData({ ...passwordData, confirm_password: e.target.value })}
                 className="w-full bg-[#11111b] border border-gray-700 rounded-lg py-3 pl-11 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
                 placeholder="••••••••"
+                autoComplete="new-password"
+                id="confirm-password"
+                name="confirm-password"
               />
             </div>
           </div>
 
-          <button
+          <Button
             type="submit"
-            disabled={isLoading || !passwordData.new_password}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50"
+            isLoading={isLoading}
+            disabled={!passwordData.new_password}
           >
-            {isLoading ? (
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <Lock size={20} />
-            )}
             Actualizar contraseña
-          </button>
+          </Button>
         </form>
-      </div>
-
-      {/* Updates Section */}
-      <div className="bg-[#181825] rounded-xl border border-gray-700 p-6 mt-6">
-        <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
-          <Download size={20} />
-          Actualizaciones
-        </h2>
-
-        <div className="space-y-4">
-          {/* Current Version */}
-          <div className="flex items-center justify-between p-4 bg-[#11111b] rounded-lg">
-            <div>
-              <p className="text-white font-medium">Versión actual</p>
-              <p className="text-gray-500 text-sm">Notes Kor4soft</p>
-            </div>
-            <span className="px-3 py-1 bg-blue-600/20 text-blue-400 rounded-full text-sm font-medium">
-              v{currentVersion}
-            </span>
-          </div>
-
-          {/* Update Status */}
-          {updateState.error && (
-            <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">
-              <AlertCircle size={20} />
-              {updateState.error}
-            </div>
-          )}
-
-          {updateState.available && updateState.version && (
-            <div className="flex items-center gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
-              <Sparkles size={20} className="text-green-400" />
-              <div className="flex-1">
-                <p className="text-green-400 font-medium">¡Nueva versión disponible!</p>
-                <p className="text-green-300/70 text-sm">Versión {updateState.version}</p>
-              </div>
-              <button
-                onClick={downloadAndInstall}
-                disabled={updateState.downloading}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
-              >
-                {updateState.downloading ? (
-                  <>
-                    <RefreshCw size={16} className="animate-spin" />
-                    Descargando...
-                  </>
-                ) : (
-                  <>
-                    <Download size={16} />
-                    Actualizar
-                  </>
-                )}
-              </button>
-            </div>
-          )}
-
-          {/* Check for Updates Button */}
-          <button
-            onClick={checkForUpdates}
-            disabled={updateState.checking || updateState.downloading}
-            className="flex items-center justify-center gap-2 w-full py-3 bg-[#11111b] hover:bg-[#1e1e2e] border border-gray-700 text-white rounded-lg transition-colors disabled:opacity-50"
-          >
-            {updateState.checking ? (
-              <>
-                <RefreshCw size={18} className="animate-spin" />
-                Verificando...
-              </>
-            ) : (
-              <>
-                <RefreshCw size={18} />
-                Buscar actualizaciones
-              </>
-            )}
-          </button>
-
-          <p className="text-gray-500 text-xs text-center">
-            Las actualizaciones se descargan e instalan automáticamente.
-          </p>
-        </div>
-      </div>
+        </CardBody>
+      </Card>
     </div>
   );
 }

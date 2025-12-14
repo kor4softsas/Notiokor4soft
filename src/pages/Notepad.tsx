@@ -15,6 +15,7 @@ import { usePersonalNotesStore } from '../store/personalNotesStore';
 import { useTeamStore } from '../store/teamStore';
 import { useAuthStore } from '../store/authStore';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { Button, Spinner, Modal, ModalBody } from '../components/ui';
 import { PersonalNote } from '../lib/supabase';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -137,6 +138,8 @@ export function Notepad() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
             <input
               type="text"
+              id="search-notepad"
+              name="search-notepad"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar notas..."
@@ -169,7 +172,7 @@ export function Notepad() {
         <div className="flex-1 overflow-y-auto p-2">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+              <Spinner />
             </div>
           ) : filteredNotes.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
@@ -216,6 +219,8 @@ export function Notepad() {
                 {isEditing ? (
                   <input
                     type="text"
+                    id="edit-note-title"
+                    name="edit-note-title"
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
                     className="w-full bg-transparent text-xl font-bold text-white focus:outline-none"
@@ -235,21 +240,22 @@ export function Notepad() {
                 {canEditNote(selectedNote) && (
                   <>
                     {isEditing ? (
-                      <button
+                      <Button
                         onClick={handleSaveNote}
-                        className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors"
+                        variant="success"
+                        size="sm"
+                        leftIcon={<Check size={16} />}
                       >
-                        <Check size={16} />
                         Guardar
-                      </button>
+                      </Button>
                     ) : (
-                      <button
+                      <Button
                         onClick={() => setIsEditing(true)}
-                        className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
+                        size="sm"
+                        leftIcon={<Edit3 size={16} />}
                       >
-                        <Edit3 size={16} />
                         Editar
-                      </button>
+                      </Button>
                     )}
                   </>
                 )}
@@ -307,37 +313,40 @@ export function Notepad() {
       </div>
 
       {/* New Note Modal */}
-      {showNewNote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="bg-[#181825] rounded-xl border border-gray-700 p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold text-white mb-4">Nueva Nota</h3>
-            <input
-              type="text"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              placeholder="Título de la nota"
-              className="w-full bg-[#11111b] border border-gray-700 rounded-lg py-3 px-4 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 mb-4"
-              autoFocus
-              onKeyDown={(e) => e.key === 'Enter' && handleCreateNote()}
-            />
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => { setShowNewNote(false); setNewTitle(''); }}
-                className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleCreateNote}
-                disabled={!newTitle.trim()}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50"
-              >
-                Crear
-              </button>
-            </div>
+      <Modal
+        isOpen={showNewNote}
+        onClose={() => { setShowNewNote(false); setNewTitle(''); }}
+        title="Nueva Nota"
+        size="sm"
+      >
+        <ModalBody>
+          <input
+            type="text"
+            id="new-note-title"
+            name="new-note-title"
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            placeholder="Título de la nota"
+            className="w-full bg-[#11111b] border border-gray-700 rounded-lg py-3 px-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            autoFocus
+            onKeyDown={(e) => e.key === 'Enter' && handleCreateNote()}
+          />
+          <div className="flex justify-end gap-3 mt-6">
+            <Button
+              variant="ghost"
+              onClick={() => { setShowNewNote(false); setNewTitle(''); }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleCreateNote}
+              disabled={!newTitle.trim()}
+            >
+              Crear
+            </Button>
           </div>
-        </div>
-      )}
+        </ModalBody>
+      </Modal>
 
       {/* Share Modal */}
       {shareModal.isOpen && (
