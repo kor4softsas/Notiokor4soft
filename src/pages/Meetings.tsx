@@ -322,19 +322,17 @@ export function Meetings() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-2">Duración (min)</label>
-                  <select
+                  <label className="block text-sm text-gray-400 mb-2">Duración (minutos)</label>
+                  <input
+                    type="number"
+                    id="meeting-duration"
+                    name="meeting-duration"
+                    min={5}
                     value={newMeeting.duration_minutes}
-                    onChange={(e) => setNewMeeting({ ...newMeeting, duration_minutes: parseInt(e.target.value) })}
+                    onChange={(e) => setNewMeeting({ ...newMeeting, duration_minutes: parseInt(e.target.value) || 60 })}
+                    placeholder="60"
                     className="w-full bg-[#11111b] border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-blue-500"
-                  >
-                    <option value={15}>15 minutos</option>
-                    <option value={30}>30 minutos</option>
-                    <option value={45}>45 minutos</option>
-                    <option value={60}>1 hora</option>
-                    <option value={90}>1.5 horas</option>
-                    <option value={120}>2 horas</option>
-                  </select>
+                  />
                 </div>
               </div>
 

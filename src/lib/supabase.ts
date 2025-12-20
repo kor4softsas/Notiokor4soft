@@ -242,6 +242,21 @@ export interface ChatMessage {
   };
 }
 
+export interface ChannelDeleteRequest {
+  id: string;
+  channel_id: string;
+  requested_by: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  approvals: string[]; // IDs de usuarios que aprobaron
+  rejections: string[]; // IDs de usuarios que rechazaron
+  channel?: ChatChannel;
+  requester?: {
+    full_name: string;
+    email: string;
+  };
+}
+
 // Expenses
 export interface ExpenseCategory {
   id: string;

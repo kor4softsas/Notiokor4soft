@@ -1,10 +1,11 @@
 import { create } from 'zustand';
-import { supabase, isSupabaseConfigured, ChatChannel, ChatMessage } from '../lib/supabase';
+import { supabase, isSupabaseConfigured, ChatChannel, ChatMessage, ChannelDeleteRequest } from '../lib/supabase';
 
 interface ChatState {
   channels: ChatChannel[];
   messages: ChatMessage[];
   currentChannel: ChatChannel | null;
+  deleteRequests: ChannelDeleteRequest[];
   isLoading: boolean;
   isLoadingMessages: boolean;
   unreadCount: number;
@@ -18,6 +19,10 @@ interface ChatState {
   editMessage: (messageId: string, content: string) => Promise<{ error: string | null }>;
   deleteMessage: (messageId: string) => Promise<{ error: string | null }>;
   createChannel: (name: string, description?: string, type?: 'public' | 'private') => Promise<{ error: string | null }>;
+  updateChannel: (channelId: string, name: string, description?: string) => Promise<{ error: string | null }>;
+  requestDeleteChannel: (channelId: string) => Promise<{ error: string | null }>;
+  voteDeleteChannel: (requestId: string, approve: boolean) => Promise<{ error: string | null }>;
+  fetchDeleteRequests: () => Promise<void>;
   setCurrentChannel: (channel: ChatChannel | null) => void;
   subscribeToMessages: (channelId: string) => () => void;
   subscribeToAllMessages: () => () => void;
@@ -30,6 +35,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   channels: [],
   messages: [],
   currentChannel: null,
+  deleteRequests: [],
   isLoading: false,
   isLoadingMessages: false,
   unreadCount: 0,
@@ -217,6 +223,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
+  updateChannel: async (channelId: string, name: string, description?: string) => {
+    if (!isSupabaseConfigured || !supabase) {
+      return { error: null };
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('chat_channels')
+        .update({ name, description, updated_at: new Date().toISOString() })
+        .eq('id', channelId)
+        .select()
+        .single();
+
+      if (error) return { error: error.message };
+      
+      set((state) => ({
+        channels: state.channels.map(c => c.id === channelId ? data : c),
+        currentChannel: state.currentChannel?.id === channelId ? data : state.currentChannel,
+      }));
+      return { error: null };
+    } catch (err: any) {
+      return { error: err.message };
+    }
+  },
+
   setCurrentChannel: (channel) => {
     set({ currentChannel: channel, messages: [] });
     if (channel) {
@@ -376,6 +407,165 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch (error) {
       console.error('Error checking unread messages:', error);
       set({ _hasFetchedUnread: true });
+    }
+  },
+
+  // Solicitar eliminación de un canal
+  requestDeleteChannel: async (channelId: string) => {
+    if (!isSupabaseConfigured || !supabase) {
+      return { error: 'No configurado' };
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return { error: 'No autenticado' };
+
+      // Verificar si ya existe una solicitud pendiente para este canal
+      const { data: existing } = await supabase
+        .from('channel_delete_requests')
+        .select('*')
+        .eq('channel_id', channelId)
+        .eq('status', 'pending')
+        .single();
+
+      if (existing) {
+        return { error: 'Ya existe una solicitud pendiente para este canal' };
+      }
+
+      // Crear nueva solicitud
+      const { error } = await supabase
+        .from('channel_delete_requests')
+        .insert([{
+          channel_id: channelId,
+          requested_by: user.id,
+          status: 'pending',
+          approvals: [user.id], // El solicitante aprueba automáticamente
+          rejections: [],
+        }]);
+
+      if (error) return { error: error.message };
+      
+      // Refrescar solicitudes
+      get().fetchDeleteRequests();
+      return { error: null };
+    } catch (err: any) {
+      return { error: err.message };
+    }
+  },
+
+  // Votar para aprobar o rechazar eliminación
+  voteDeleteChannel: async (requestId: string, approve: boolean) => {
+    if (!isSupabaseConfigured || !supabase) {
+      return { error: 'No configurado' };
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return { error: 'No autenticado' };
+
+      // Obtener la solicitud actual
+      const { data: request, error: fetchError } = await supabase
+        .from('channel_delete_requests')
+        .select('*')
+        .eq('id', requestId)
+        .single();
+
+      if (fetchError || !request) return { error: 'Solicitud no encontrada' };
+      if (request.status !== 'pending') return { error: 'Esta solicitud ya fue procesada' };
+
+      // Verificar si el usuario ya votó
+      const hasApproved = request.approvals?.includes(user.id);
+      const hasRejected = request.rejections?.includes(user.id);
+      
+      if (hasApproved || hasRejected) {
+        return { error: 'Ya has votado en esta solicitud' };
+      }
+
+      // Actualizar votos
+      const newApprovals = approve 
+        ? [...(request.approvals || []), user.id]
+        : request.approvals || [];
+      const newRejections = !approve 
+        ? [...(request.rejections || []), user.id]
+        : request.rejections || [];
+
+      // Obtener total de miembros del equipo
+      const { count: totalMembers } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true });
+
+      // Verificar si todos aprobaron o si hay rechazo
+      const allApproved = totalMembers && newApprovals.length >= totalMembers;
+      const hasRejection = newRejections.length > 0;
+
+      let newStatus = 'pending';
+      if (hasRejection) {
+        newStatus = 'rejected';
+      } else if (allApproved) {
+        newStatus = 'approved';
+      }
+
+      // Actualizar solicitud
+      const { error: updateError } = await supabase
+        .from('channel_delete_requests')
+        .update({
+          approvals: newApprovals,
+          rejections: newRejections,
+          status: newStatus,
+        })
+        .eq('id', requestId);
+
+      if (updateError) return { error: updateError.message };
+
+      // Si fue aprobada por todos, eliminar el canal
+      if (newStatus === 'approved') {
+        const { error: deleteError } = await supabase
+          .from('chat_channels')
+          .delete()
+          .eq('id', request.channel_id);
+
+        if (deleteError) return { error: deleteError.message };
+
+        // Actualizar lista de canales
+        set((state) => ({
+          channels: state.channels.filter(c => c.id !== request.channel_id),
+          currentChannel: state.currentChannel?.id === request.channel_id 
+            ? state.channels.find(c => c.id !== request.channel_id) || null
+            : state.currentChannel,
+        }));
+      }
+
+      // Refrescar solicitudes
+      get().fetchDeleteRequests();
+      return { error: null };
+    } catch (err: any) {
+      return { error: err.message };
+    }
+  },
+
+  // Obtener solicitudes de eliminación pendientes
+  fetchDeleteRequests: async () => {
+    if (!isSupabaseConfigured || !supabase) {
+      set({ deleteRequests: [] });
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('channel_delete_requests')
+        .select(`
+          *,
+          channel:chat_channels(id, name, description),
+          requester:profiles(full_name, email)
+        `)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      set({ deleteRequests: data || [] });
+    } catch (error) {
+      console.error('Error fetching delete requests:', error);
+      set({ deleteRequests: [] });
     }
   },
 }));

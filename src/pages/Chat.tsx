@@ -8,7 +8,12 @@ import {
   Trash2,
   X,
   Lock,
+  AlertTriangle,
+  Check,
+  Users,
 } from 'lucide-react';
+import { useToast } from '../hooks/useToast';
+import { useTeamStore } from '../store/teamStore';
 import { useChatStore } from '../store/chatStore';
 import { useAuthStore } from '../store/authStore';
 import { format, isToday, isYesterday, parseISO } from 'date-fns';
@@ -20,16 +25,24 @@ export function Chat() {
     channels,
     messages,
     currentChannel,
+    deleteRequests,
     isLoading,
     isLoadingMessages,
     fetchChannels,
+    fetchMessages,
     setCurrentChannel,
     sendMessage,
     editMessage,
     deleteMessage,
     createChannel,
+    updateChannel,
+    requestDeleteChannel,
+    voteDeleteChannel,
+    fetchDeleteRequests,
     subscribeToMessages,
   } = useChatStore();
+  const { members, fetchMembers } = useTeamStore();
+  const toast = useToast();
 
   const [newMessage, setNewMessage] = useState('');
   const [isCodeMode, setIsCodeMode] = useState(false);
@@ -40,20 +53,29 @@ export function Chat() {
   const [editingMessage, setEditingMessage] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [showDeleteRequests, setShowDeleteRequests] = useState(false);
+  const [showEditChannel, setShowEditChannel] = useState(false);
+  const [editChannelName, setEditChannelName] = useState('');
+  const [editChannelDesc, setEditChannelDesc] = useState('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     fetchChannels();
-  }, [fetchChannels]);
+    fetchDeleteRequests();
+    fetchMembers();
+  }, [fetchChannels, fetchDeleteRequests, fetchMembers]);
 
   useEffect(() => {
     if (currentChannel) {
+      // Cargar mensajes existentes al cambiar de canal
+      fetchMessages(currentChannel.id);
+      // Suscribirse a nuevos mensajes en tiempo real
       const unsubscribe = subscribeToMessages(currentChannel.id);
       return unsubscribe;
     }
-  }, [currentChannel, subscribeToMessages]);
+  }, [currentChannel, fetchMessages, subscribeToMessages]);
 
   useEffect(() => {
     // Auto-scroll al final cuando llegan nuevos mensajes
@@ -186,13 +208,51 @@ export function Chat() {
           <>
             {/* Header del canal */}
             <div className="px-6 py-4 border-b border-gray-700 bg-[#181825]">
-              <div className="flex items-center gap-3">
-                <Hash size={20} className="text-gray-400" />
-                <div>
-                  <h1 className="font-semibold text-white">{currentChannel.name}</h1>
-                  {currentChannel.description && (
-                    <p className="text-sm text-gray-500">{currentChannel.description}</p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Hash size={20} className="text-gray-400" />
+                  <div>
+                    <h1 className="font-semibold text-white">{currentChannel.name}</h1>
+                    {currentChannel.description && (
+                      <p className="text-sm text-gray-500">{currentChannel.description}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {deleteRequests.length > 0 && (
+                    <button
+                      onClick={() => setShowDeleteRequests(true)}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/20 text-yellow-400 rounded-lg text-sm hover:bg-yellow-500/30 transition-colors"
+                    >
+                      <AlertTriangle size={16} />
+                      {deleteRequests.length} solicitud(es)
+                    </button>
                   )}
+                  <button
+                    onClick={() => {
+                      setEditChannelName(currentChannel.name);
+                      setEditChannelDesc(currentChannel.description || '');
+                      setShowEditChannel(true);
+                    }}
+                    className="p-2 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                    title="Editar canal"
+                  >
+                    <Edit2 size={18} />
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const { error } = await requestDeleteChannel(currentChannel.id);
+                      if (error) {
+                        toast.show(error, 'error');
+                      } else {
+                        toast.show('Solicitud de eliminación enviada. Requiere aprobación de todos.', 'success');
+                      }
+                    }}
+                    className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                    title="Solicitar eliminar canal"
+                  >
+                    <Trash2 size={18} />
+                  </button>
                 </div>
               </div>
             </div>
@@ -503,6 +563,176 @@ export function Chat() {
             </button>
           </div>
         </>
+      )}
+
+      {/* Modal de solicitudes de eliminación */}
+      {showDeleteRequests && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-[#181825] rounded-xl w-full max-w-lg mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <AlertTriangle size={20} className="text-yellow-400" />
+                Solicitudes de eliminación
+              </h2>
+              <button
+                onClick={() => setShowDeleteRequests(false)}
+                className="p-1 hover:bg-[#1e1e2e] rounded-lg text-gray-400 hover:text-white"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {deleteRequests.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">No hay solicitudes pendientes</p>
+              ) : (
+                deleteRequests.map((request) => {
+                  const hasVoted = request.approvals?.includes(user?.id || '') || request.rejections?.includes(user?.id || '');
+                  const totalMembers = members.length;
+                  const approvalCount = request.approvals?.length || 0;
+                  
+                  return (
+                    <div key={request.id} className="bg-[#11111b] rounded-lg p-4 border border-gray-700">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h3 className="font-medium text-white flex items-center gap-2">
+                            <Hash size={16} className="text-gray-400" />
+                            {request.channel?.name || 'Canal desconocido'}
+                          </h3>
+                          <p className="text-sm text-gray-500 mt-1">
+                            Solicitado por: {request.requester?.full_name || 'Usuario'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 text-sm">
+                          <Users size={14} className="text-gray-400" />
+                          <span className="text-gray-400">{approvalCount}/{totalMembers}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="w-full bg-gray-700 rounded-full h-2 mb-3">
+                        <div 
+                          className="bg-green-500 h-2 rounded-full transition-all"
+                          style={{ width: `${totalMembers > 0 ? (approvalCount / totalMembers) * 100 : 0}%` }}
+                        />
+                      </div>
+                      
+                      {hasVoted ? (
+                        <p className="text-sm text-gray-500 text-center py-2">
+                          ✓ Ya has votado en esta solicitud
+                        </p>
+                      ) : (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={async () => {
+                              const { error } = await voteDeleteChannel(request.id, true);
+                              if (error) toast.show(error, 'error');
+                              else toast.show('Voto registrado', 'success');
+                            }}
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors"
+                          >
+                            <Check size={16} />
+                            Aprobar
+                          </button>
+                          <button
+                            onClick={async () => {
+                              const { error } = await voteDeleteChannel(request.id, false);
+                              if (error) toast.show(error, 'error');
+                              else toast.show('Solicitud rechazada', 'success');
+                            }}
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"
+                          >
+                            <X size={16} />
+                            Rechazar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            
+            <div className="p-4 border-t border-gray-700 bg-[#11111b]/50">
+              <p className="text-xs text-gray-500 text-center">
+                Un canal se elimina cuando TODOS los miembros aprueban. Si alguien rechaza, la solicitud se cancela.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Canal */}
+      {showEditChannel && currentChannel && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-[#181825] rounded-xl p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white">Editar Canal</h2>
+              <button
+                onClick={() => setShowEditChannel(false)}
+                className="p-1 hover:bg-[#1e1e2e] rounded-lg text-gray-400 hover:text-white"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Nombre del canal
+                </label>
+                <input
+                  type="text"
+                  id="edit-channel-name"
+                  name="edit-channel-name"
+                  value={editChannelName}
+                  onChange={(e) => setEditChannelName(e.target.value)}
+                  placeholder="Nombre del canal"
+                  className="w-full bg-[#11111b] border border-gray-600 rounded-lg px-4 py-3 text-white outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Descripción (opcional)
+                </label>
+                <input
+                  type="text"
+                  id="edit-channel-desc"
+                  name="edit-channel-desc"
+                  value={editChannelDesc}
+                  onChange={(e) => setEditChannelDesc(e.target.value)}
+                  placeholder="¿De qué trata este canal?"
+                  className="w-full bg-[#11111b] border border-gray-600 rounded-lg px-4 py-3 text-white outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setShowEditChannel(false)}
+                  className="flex-1 px-4 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!editChannelName.trim()) return;
+                    const { error } = await updateChannel(currentChannel.id, editChannelName, editChannelDesc);
+                    if (error) {
+                      toast.show(error, 'error');
+                    } else {
+                      toast.show('Canal actualizado', 'success');
+                      setShowEditChannel(false);
+                    }
+                  }}
+                  disabled={!editChannelName.trim()}
+                  className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  Guardar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
